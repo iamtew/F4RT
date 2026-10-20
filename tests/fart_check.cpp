@@ -31,6 +31,14 @@ int main()
     f4rt::fillParams (a, 1, f4rt::randPsy, f4rt::randAll);
     f4rt::fillParams (b, 2, f4rt::randPsy, f4rt::randAll);
     assert (std::abs (a.cutoff - b.cutoff) > 1.f || std::abs (a.macros[2] - b.macros[2]) > 0.01f);
+    assert (a.filtType == f4rt::filtLP);
+    assert (a.osc[0].type == f4rt::oscSaw || a.osc[0].type == f4rt::oscSquare);
+    assert (a.filtEnv >= 0.7f);
+    assert (a.macros[4] <= 0.68f);
+    assert (b.filtType == f4rt::filtLP);
+    assert (b.osc[0].type == f4rt::oscSaw || b.osc[0].type == f4rt::oscSquare);
+    assert (b.filtEnv >= 0.7f);
+    assert (b.macros[4] <= 0.68f);
 
     f4rt::applyFmPreset (p, 0);
     const float simple = p.fm[1][0];

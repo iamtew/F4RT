@@ -93,6 +93,37 @@ inline void fillParams (Params& p, uint32_t seed, int mode, int kind)
 
     p = defaultParams();
     const bool safe = kind == randSafe;
+    if (mode == randPsy)
+    {
+        p.osc[0].type = rng.irange (0, 1) ? oscSquare : oscSaw;
+        p.osc[0].vol = rng.range (0.6f, 0.95f);
+        p.osc[0].coarse = (float) rng.irange (-2, 2);
+        applyFmPreset (p, 0);
+        p.formMix = rng.range (0.f, 0.2f);
+        p.filtType = filtLP;
+        p.cutoff = rng.range (180.f, 800.f);
+        p.res = rng.range (0.55f, 0.85f);
+        p.filtEnv = rng.range (0.7f, 1.f);
+        p.distType = rng.irange (0, 1) ? distTube : distSoft;
+        p.distDrive = rng.range (0.05f, 0.35f);
+        p.distMix = rng.range (0.1f, 0.45f);
+        p.env[5].a = rng.range (0.0005f, 0.02f);
+        p.env[5].d = rng.range (0.05f, 0.4f);
+        p.env[5].r = rng.range (0.05f, 0.6f);
+        p.env[1].a = rng.range (0.0005f, 0.008f);
+        p.env[1].d = rng.range (0.04f, 0.15f);
+        p.env[1].s = 0.f;
+        p.macros[0] = rng.range (0.2f, 0.8f);
+        p.macros[1] = rng.range (0.45f, 0.85f);
+        p.macros[2] = rng.range (0.f, 0.55f);
+        p.macros[3] = rng.range (0.f, 0.4f);
+        p.macros[4] = rng.range (0.45f, 0.68f);
+        p.macros[5] = rng.range (0.15f, 0.85f);
+        p.macros[6] = rng.range (0.f, 0.35f);
+        p.lfo[0].rateHz = rng.range (0.5f, 12.f);
+        p.lfo[0].amt = rng.range (0.f, 0.35f);
+        return;
+    }
     p.osc[0].type = safe ? oscSine : rng.irange (0, 4);
     p.osc[0].vol = rng.range (0.6f, 0.95f);
     p.osc[0].coarse = (float) rng.irange (safe ? -5 : -24, safe ? 7 : 19);
@@ -114,9 +145,9 @@ inline void fillParams (Params& p, uint32_t seed, int mode, int kind)
     p.formMix = mode == randForest ? rng.range (0.3f, 0.8f) : rng.range (0.f, 0.6f);
     p.formTrack = rng.range (0.f, 0.6f);
 
-    p.filtType = mode == randPsy ? filtLP : rng.irange (0, 5);
+    p.filtType = rng.irange (0, 5);
     p.cutoff = rng.range (200.f, mode == randDark ? 900.f : 5000.f);
-    p.res = rng.range (0.15f, mode == randPsy ? 0.85f : 0.55f);
+    p.res = rng.range (0.15f, 0.55f);
     p.filtEnv = rng.range (0.2f, 0.9f);
     p.distType = mode == randHiTech ? distCrush : (safe ? distSoft : rng.irange (0, 5));
     p.distDrive = rng.range (0.05f, safe ? 0.3f : 0.8f);
@@ -130,7 +161,7 @@ inline void fillParams (Params& p, uint32_t seed, int mode, int kind)
     p.macros[1] = rng.range (0.1f, 0.9f);
     p.macros[2] = rng.range (0.f, mode == randExp ? 0.9f : 0.55f);
     p.macros[3] = rng.range (0.f, 0.7f);
-    p.macros[4] = rng.range (0.1f, 0.8f);
+    p.macros[4] = rng.range (0.1f, 0.68f);
     p.macros[5] = rng.range (0.15f, 0.85f);
     p.macros[6] = rng.range (0.f, mode == randDark ? 0.8f : 0.35f);
     p.lfo[0].rateHz = rng.range (0.5f, 12.f);
