@@ -884,7 +884,7 @@ void F4RTAudioProcessorEditor::timerCallback()
 {
     refreshBars();
     volumeStrip.refresh();
-    if (editorPage == 7)
+    if (editorPage == 0 || editorPage == 7)
         viz.repaint();
 }
 
@@ -969,6 +969,8 @@ void F4RTAudioProcessorEditor::layoutContent()
         for (int i = 0; i < items.size(); ++i)
             if (items[i] != nullptr)
                 items[i]->setBounds (r.getX() + (i % cols) * cw, r.getY() + (i / cols) * rh, cw, rh);
+        if (editorPage == 0)
+            viz.setBounds (r.withTrimmedTop (rows * rh + 4));
     }
 
     aboutBox.setBounds (content.getLocalBounds());
@@ -992,7 +994,8 @@ void F4RTAudioProcessorEditor::applyPageVisibility()
     search.setVisible (editorPage == 6);
     browser.setVisible (editorPage == 6);
     vizMode.setVisible (editorPage == 7);
-    viz.setVisible (editorPage == 7);
+    viz.setVisible (editorPage == 0 || editorPage == 7);
+    viz.mode = (editorPage == 0) ? 0 : vizMode.getSelectedId() - 1;
     layoutContent();
     if (aboutBox.isVisible())
         aboutBox.toFront (false);
