@@ -46,7 +46,8 @@ juce::String factoryLabel (int i)
 // ---------------------------------------------------------------- Cells
 
 F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
-                                      const juce::String& id, const juce::String& name)
+                                      const juce::String& id, const juce::String& name,
+                                      const juce::String& tip)
 {
     label.setText (name, juce::dontSendNotification);
     label.setJustificationType (juce::Justification::centred);
@@ -58,8 +59,11 @@ F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
     slider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
     slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     addAndMakeVisible (slider);
-    att = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (st, id, slider);    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (st.getParameter (id)))
+    att = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (st, id, slider);
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (st.getParameter (id)))
         slider.setDoubleClickReturnValue (true, p->convertFrom0to1 (p->getDefaultValue()));
+    setTooltip (tip);
+    slider.setTooltip (tip);
 }
 
 void F4RTAudioProcessorEditor::Knob::resized()
@@ -70,7 +74,8 @@ void F4RTAudioProcessorEditor::Knob::resized()
 }
 
 F4RTAudioProcessorEditor::Combo::Combo (juce::AudioProcessorValueTreeState& st,
-                                        const juce::String& id, const juce::String& name)
+                                        const juce::String& id, const juce::String& name,
+                                        const juce::String& tip)
 {
     label.setText (name, juce::dontSendNotification);
     label.setJustificationType (juce::Justification::centred);
@@ -81,6 +86,8 @@ F4RTAudioProcessorEditor::Combo::Combo (juce::AudioProcessorValueTreeState& st,
         box.addItemList (c->choices, 1);
     addAndMakeVisible (box);
     att = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (st, id, box);
+    setTooltip (tip);
+    box.setTooltip (tip);
 }
 
 void F4RTAudioProcessorEditor::Combo::resized()
@@ -91,11 +98,14 @@ void F4RTAudioProcessorEditor::Combo::resized()
 }
 
 F4RTAudioProcessorEditor::Toggle::Toggle (juce::AudioProcessorValueTreeState& st,
-                                          const juce::String& id, const juce::String& name)
+                                          const juce::String& id, const juce::String& name,
+                                          const juce::String& tip)
 {
     btn.setButtonText (name);
     addAndMakeVisible (btn);
     att = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (st, id, btn);
+    setTooltip (tip);
+    btn.setTooltip (tip);
 }
 
 void F4RTAudioProcessorEditor::Toggle::resized()
@@ -157,6 +167,18 @@ void F4RTAudioProcessorEditor::PanelLnF::drawComboBox (juce::Graphics& g, int wi
 
 juce::Font F4RTAudioProcessorEditor::PanelLnF::getLabelFont (juce::Label&) { return boldFont (11.f); }
 juce::Font F4RTAudioProcessorEditor::PanelLnF::getComboBoxFont (juce::ComboBox&) { return boldFont (11.f); }
+
+void F4RTAudioProcessorEditor::PanelLnF::drawTooltip (juce::Graphics& g, const juce::String& text, int width, int height)
+{
+    auto r = juce::Rectangle<float> (0.f, 0.f, (float) width, (float) height);
+    g.setColour (kInk);
+    g.fillRoundedRectangle (r, 3.f);
+    g.setColour (kGreen);
+    g.drawRoundedRectangle (r.reduced (0.5f), 3.f, 1.f);
+    g.setColour (kLight);
+    g.setFont (boldFont (12.f));
+    g.drawFittedText (text, r.reduced (6.f, 4.f).toNearestInt(), juce::Justification::centredLeft, 4);
+}
 
 // ---------------------------------------------------------------- About
 
@@ -340,7 +362,9 @@ F4RTAudioProcessorEditor::VolumeStrip::VolumeStrip (F4RTAudioProcessorEditor& ed
     slider.setOpaque (false);
     slider.setColour (juce::Slider::backgroundColourId, juce::Colours::transparentBlack);
     slider.setColour (juce::Slider::trackColourId, juce::Colours::transparentBlack);
-    slider.setTooltip ("Level");
+    const juce::String levelTip = "Output level. Right side is the spectrum. Yellow = clip.";
+    setTooltip (levelTip);
+    slider.setTooltip (levelTip);
     if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (editor.proc.apvts.getParameter (ParamID::level)))
         slider.setDoubleClickReturnValue (true, p->convertFrom0to1 (p->getDefaultValue()));
     sliderAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -568,25 +592,28 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     panelLnF.setColour (juce::PopupMenu::highlightedTextColourId, kInk);
     panelLnF.setColour (juce::ComboBox::textColourId, kLight);
     panelLnF.setColour (juce::ComboBox::arrowColourId, kYellow);
+    panelLnF.setColour (juce::TooltipWindow::backgroundColourId, kInk);
+    panelLnF.setColour (juce::TooltipWindow::textColourId, kLight);
+    panelLnF.setColour (juce::TooltipWindow::outlineColourId, kGreen);
     logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
 
     // Each add* creates the control and appends it to a page's grid, in reading order.
     int page = 0;
-    auto addK = [this, &page] (const char* id, const juce::String& name)
+    auto addK = [this, &page] (const char* id, const juce::String& name, const juce::String& tip)
     {
-        auto* k = knobs.add (new Knob (proc.apvts, id, name));
+        auto* k = knobs.add (new Knob (proc.apvts, id, name, tip));
         content.addChildComponent (k);
         pageItems[page].add (k);
     };
-    auto addC = [this, &page] (const char* id, const juce::String& name)
+    auto addC = [this, &page] (const char* id, const juce::String& name, const juce::String& tip)
     {
-        auto* c = combos.add (new Combo (proc.apvts, id, name));
+        auto* c = combos.add (new Combo (proc.apvts, id, name, tip));
         content.addChildComponent (c);
         pageItems[page].add (c);
     };
-    auto addT = [this, &page] (const char* id, const juce::String& name)
+    auto addT = [this, &page] (const char* id, const juce::String& name, const juce::String& tip)
     {
-        auto* t = toggles.add (new Toggle (proc.apvts, id, name));
+        auto* t = toggles.add (new Toggle (proc.apvts, id, name, tip));
         content.addChildComponent (t);
         pageItems[page].add (t);
     };
@@ -600,67 +627,84 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     page = 0;
     pageCols[page] = 5;
     static const char* macN[] = { "Size", "Wetness", "Anger", "Alienness", "Squelch", "Rip Length", "Toxicity" };
+    static const char* macT[] = {
+        "Amp decay and cutoff. Bigger = longer, darker.",
+        "Resonance and formant mix. Wetter = squelchier.",
+        "FM amount, FM envelope and distortion drive.",
+        "Wobbles formant morph via LFO 1. Also a matrix source.",
+        "Resonance. Above about 0.7 switches the filter to comb.",
+        "Amp release. Longer rip = longer tail.",
+        "Above about 0.55 switches distortion to fold. Also a matrix source."
+    };
     for (int i = 0; i < 7; ++i)
-        addK (ParamID::macro[i], macN[i]);
-    addK (ParamID::voices, "Voices");
-    addC (ParamID::polyMode, "Poly");
-    addC (ParamID::randMode, "Rand Mode");
+        addK (ParamID::macro[i], macN[i], macT[i]);
+    addK (ParamID::voices, "Voices", "How many notes at once (1-64).");
+    addC (ParamID::polyMode, "Poly", "Mono, legato or polyphonic.");
+    addC (ParamID::randMode, "Rand Mode", "Flavour for All / Safe randomize (Clean, Psytrance, Forest...).");
 
     // Osc: one row per oscillator (type, 6 knobs, FM into osc 1..4), then FM env + recipe.
     page = 1;
     pageCols[page] = 11;
     for (int i = 0; i < 4; ++i)
     {
-        addC (ParamID::oType[i], "Osc" + juce::String (i + 1));
-        addK (ParamID::oVol[i], "Vol");
-        addK (ParamID::oPan[i], "Pan");
-        addK (ParamID::oCoarse[i], "Coarse");
-        addK (ParamID::oFine[i], "Fine");
-        addK (ParamID::oPhase[i], "Phase");
-        addK (ParamID::oWidth[i], "Width");
+        const auto n = juce::String (i + 1);
+        addC (ParamID::oType[i], "Osc" + n,
+              "Osc " + n + " waveform: sine, tri, saw, square, wavetable, noise or user WT.");
+        addK (ParamID::oVol[i], "Vol", "Osc " + n + " volume.");
+        addK (ParamID::oPan[i], "Pan", "Osc " + n + " pan (left to right).");
+        addK (ParamID::oCoarse[i], "Coarse", "Osc " + n + " pitch in semitones.");
+        addK (ParamID::oFine[i], "Fine", "Osc " + n + " pitch in cents.");
+        addK (ParamID::oPhase[i], "Phase", "Osc " + n + " start phase.");
+        addK (ParamID::oWidth[i], "Width", "Osc " + n + " stereo width.");
         for (int j = 0; j < 4; ++j)
-            addK (ParamID::fm[i][j], "FM" + juce::String (i + 1) + ">" + juce::String (j + 1));
+            addK (ParamID::fm[i][j], "FM" + n + ">" + juce::String (j + 1),
+                  "How much osc " + n + " modulates osc " + juce::String (j + 1) + ".");
     }
-    addK (ParamID::fmEnvDepth, "FM Env");
-    addC (ParamID::fmRecipe, "Recipe");
+    addK (ParamID::fmEnvDepth, "FM Env", "How much the FM envelope scales the FM amounts.");
+    addC (ParamID::fmRecipe, "Recipe", "Preset FM graph. Click Apply FM to write it.");
 
     // Filter: formant row, filter row, distortion row.
     page = 2;
     pageCols[page] = 6;
-    addC (ParamID::formA, "Form A");
-    addC (ParamID::formB, "Form B");
-    addC (ParamID::vowel, "Vowel");
-    addK (ParamID::formMorph, "Morph");
-    addK (ParamID::formTrack, "Track");
-    addK (ParamID::formMix, "Mix");
-    addC (ParamID::filtType, "Filter");
-    addK (ParamID::cutoff, "Cutoff");
-    addK (ParamID::res, "Res");
-    addK (ParamID::filtDrive, "Drive");
-    addK (ParamID::keyTrack, "Key");
-    addK (ParamID::filtEnv, "Env");
-    addC (ParamID::distType, "Dist");
-    addK (ParamID::distDrive, "Drive");
-    addK (ParamID::distTone, "Tone");
-    addK (ParamID::distMix, "Mix");
+    addC (ParamID::formA, "Form A", "First formant vowel.");
+    addC (ParamID::formB, "Form B", "Second formant vowel.");
+    addC (ParamID::vowel, "Vowel", "Quick vowel pick (also a parameter).");
+    addK (ParamID::formMorph, "Morph", "Blend Form A into Form B.");
+    addK (ParamID::formTrack, "Track", "How much formants follow the MIDI note.");
+    addK (ParamID::formMix, "Mix", "Dry/wet of the formant filter.");
+    addC (ParamID::filtType, "Filter", "LP, HP, BP, notch, comb or SVF.");
+    addK (ParamID::cutoff, "Cutoff", "Filter cutoff frequency.");
+    addK (ParamID::res, "Res", "Filter resonance / emphasis.");
+    addK (ParamID::filtDrive, "Drive", "Saturation into the filter.");
+    addK (ParamID::keyTrack, "Key", "How much cutoff follows the MIDI note.");
+    addK (ParamID::filtEnv, "Env", "How much the filter envelope moves cutoff.");
+    addC (ParamID::distType, "Dist", "Soft, hard, tube, fold, crush or digital.");
+    addK (ParamID::distDrive, "Drive", "Distortion amount.");
+    addK (ParamID::distTone, "Tone", "Distortion brightness.");
+    addK (ParamID::distMix, "Mix", "Dry/wet of the distortion.");
 
     // Motion: two envelopes per row, then two LFOs per row.
     page = 3;
     pageCols[page] = 8;
     static const char* envN[] = { "Pitch", "Filt", "FM", "Form", "Dist", "Amp" };
+    static const char* envWhat[] = {
+        "pitch", "filter cutoff", "FM amounts", "formant morph", "distortion", "amplitude"
+    };
     for (int i = 0; i < 6; ++i)
     {
-        addK (ParamID::eAtk[i], juce::String (envN[i]) + " A");
-        addK (ParamID::eDec[i], "D");
-        addK (ParamID::eSus[i], "S");
-        addK (ParamID::eRel[i], "R");
+        const juce::String w = envWhat[i];
+        addK (ParamID::eAtk[i], juce::String (envN[i]) + " A", "Attack of the " + w + " envelope.");
+        addK (ParamID::eDec[i], "D", "Decay of the " + w + " envelope.");
+        addK (ParamID::eSus[i], "S", "Sustain of the " + w + " envelope.");
+        addK (ParamID::eRel[i], "R", "Release of the " + w + " envelope.");
     }
     for (int i = 0; i < 4; ++i)
     {
-        addC (ParamID::lShape[i], "LFO" + juce::String (i + 1));
-        addK (ParamID::lRate[i], "Rate");
-        addK (ParamID::lAmt[i], "Amt");
-        addT (ParamID::lSync[i], "Sync");
+        const auto n = juce::String (i + 1);
+        addC (ParamID::lShape[i], "LFO" + n, "LFO " + n + " shape (sine, tri, ramp, random, S&H, user).");
+        addK (ParamID::lRate[i], "Rate", "LFO " + n + " rate in Hz (or tempo if Sync is on).");
+        addK (ParamID::lAmt[i], "Amt", "LFO " + n + " amount.");
+        addT (ParamID::lSync[i], "Sync", "Lock LFO " + n + " rate to host tempo.");
     }
 
     // Matrix: first 8 of 32 routes, two per row. A route does nothing until it is On.
@@ -668,40 +712,68 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     pageCols[page] = 8;
     for (int i = 0; i < 8; ++i)
     {
-        addT (ParamID::mxOn[i], "On " + juce::String (i + 1));
-        addC (ParamID::mxSrc[i], "Src");
-        addC (ParamID::mxDst[i], "Dst");
-        addK (ParamID::mxAmt[i], "Amt");
+        const auto n = juce::String (i + 1);
+        addT (ParamID::mxOn[i], "On " + n, "Lights route " + n + ". Does nothing until On.");
+        addC (ParamID::mxSrc[i], "Src", "Modulation source for route " + n + ".");
+        addC (ParamID::mxDst[i], "Dst", "What route " + n + " modulates.");
+        addK (ParamID::mxAmt[i], "Amt", "How much route " + n + " applies (negative inverts).");
     }
 
     // FX: three effects per row, each "On + up to 3 knobs", then the 9 order slots.
     page = 5;
     pageCols[page] = 12;
-    struct FxSpec { const char* on; const char* name; const char* k[3]; const char* kn[3]; };
+    struct FxSpec
+    {
+        const char* on;
+        const char* name;
+        const char* onTip;
+        const char* k[3];
+        const char* kn[3];
+        const char* kt[3];
+    };
     static const FxSpec kFx[] = {
-        { ParamID::eqOn,  "EQ",      { ParamID::eqLo, ParamID::eqMid, ParamID::eqHi }, { "Lo", "Mid", "Hi" } },
-        { ParamID::cmpOn, "Comp",    { ParamID::cmpTh, ParamID::cmpRt, nullptr },      { "Thresh", "Ratio", nullptr } },
-        { ParamID::dlyOn, "Delay",   { ParamID::dlyT, ParamID::dlyFb, nullptr },       { "Time", "FB", nullptr } },
-        { ParamID::revOn, "Reverb",  { ParamID::revSz, ParamID::revDm, nullptr },      { "Size", "Damp", nullptr } },
-        { ParamID::choOn, "Chorus",  { ParamID::choRt, ParamID::choDp, nullptr },      { "Rate", "Depth", nullptr } },
-        { ParamID::phOn,  "Phaser",  { ParamID::phRt, ParamID::phDp, nullptr },        { "Rate", "Depth", nullptr } },
-        { ParamID::flOn,  "Flanger", { ParamID::flRt, ParamID::flFb, nullptr },        { "Rate", "FB", nullptr } },
-        { ParamID::shOn,  "Shift",   { ParamID::shHz, nullptr, nullptr },              { "Hz", nullptr, nullptr } },
-        { ParamID::grOn,  "Grain",   { ParamID::grSz, ParamID::grDn, nullptr },        { "Size", "Dens", nullptr } },
+        { ParamID::eqOn,  "EQ",     "Enable 3-band EQ.",
+          { ParamID::eqLo, ParamID::eqMid, ParamID::eqHi }, { "Lo", "Mid", "Hi" },
+          { "Low shelf gain.", "Mid band gain.", "High shelf gain." } },
+        { ParamID::cmpOn, "Comp",   "Enable compressor.",
+          { ParamID::cmpTh, ParamID::cmpRt, nullptr }, { "Thresh", "Ratio", nullptr },
+          { "Level above which compression starts.", "How hard it squashes.", nullptr } },
+        { ParamID::dlyOn, "Delay",  "Enable delay. Knobs do nothing while off.",
+          { ParamID::dlyT, ParamID::dlyFb, nullptr }, { "Time", "FB", nullptr },
+          { "Delay time.", "How much repeats feed back.", nullptr } },
+        { ParamID::revOn, "Reverb", "Enable reverb.",
+          { ParamID::revSz, ParamID::revDm, nullptr }, { "Size", "Damp", nullptr },
+          { "Room size.", "How fast highs die in the tail.", nullptr } },
+        { ParamID::choOn, "Chorus", "Enable chorus.",
+          { ParamID::choRt, ParamID::choDp, nullptr }, { "Rate", "Depth", nullptr },
+          { "Chorus LFO rate.", "Chorus LFO depth.", nullptr } },
+        { ParamID::phOn,  "Phaser", "Enable phaser.",
+          { ParamID::phRt, ParamID::phDp, nullptr }, { "Rate", "Depth", nullptr },
+          { "Phaser LFO rate.", "Phaser LFO depth.", nullptr } },
+        { ParamID::flOn,  "Flanger","Enable flanger.",
+          { ParamID::flRt, ParamID::flFb, nullptr }, { "Rate", "FB", nullptr },
+          { "Flanger LFO rate.", "Flanger feedback (metallic when high).", nullptr } },
+        { ParamID::shOn,  "Shift",  "Enable frequency shifter.",
+          { ParamID::shHz, nullptr, nullptr }, { "Hz", nullptr, nullptr },
+          { "Shift in Hz (negative = down).", nullptr, nullptr } },
+        { ParamID::grOn,  "Grain",  "Enable grain delay.",
+          { ParamID::grSz, ParamID::grDn, nullptr }, { "Size", "Dens", nullptr },
+          { "Grain length.", "How many grains overlap.", nullptr } },
     };
     for (const auto& fx : kFx)
     {
-        addT (fx.on, fx.name);
+        addT (fx.on, fx.name, fx.onTip);
         for (int k = 0; k < 3; ++k)
         {
             if (fx.k[k] != nullptr)
-                addK (fx.k[k], fx.kn[k]);
+                addK (fx.k[k], fx.kn[k], fx.kt[k]);
             else
                 gap (1);
         }
     }
     for (int i = 0; i < 9; ++i)
-        addC (ParamID::fxSlot[i], "Slot " + juce::String (i + 1));
+        addC (ParamID::fxSlot[i], "Slot " + juce::String (i + 1),
+              "Which effect sits in slot " + juce::String (i + 1) + " of the chain.");
 
     pageCols[6] = 1;
     pageCols[7] = 1;
@@ -716,12 +788,16 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     pageButtons[1] = { &recipeBtn, &wtBtn };
     pageButtons[6] = { &saveBtn, &loadBtn, &favBtn };
 
-    playBtn.setTooltip ("Play a test note (C3)");
-    randAll.setTooltip ("Random new patch (uses Rand Mode)");
-    randSafe.setTooltip ("Random, tamer ranges");
-    randFx.setTooltip ("Random delay / reverb only");
-    randMut.setTooltip ("Nudge the current patch");
-    recipeBtn.setTooltip ("Apply the FM recipe chosen on the Osc page");
+    playBtn.setTooltip ("Play a test note (C3).");
+    randAll.setTooltip ("Random new patch. Uses Rand Mode for flavour.");
+    randSafe.setTooltip ("Random, tamer ranges. Uses Rand Mode.");
+    randFx.setTooltip ("Random delay / reverb only. Leaves the rest.");
+    randMut.setTooltip ("Nudge the current patch a little.");
+    recipeBtn.setTooltip ("Write the Osc-page FM recipe into the oscillators.");
+    wtBtn.setTooltip ("Load a wav file as the user wavetable (Osc type User WT).");
+    saveBtn.setTooltip ("Save this patch as a .f4rtp in the library folder.");
+    loadBtn.setTooltip ("Import a .f4rtp into the library and load it.");
+    favBtn.setTooltip ("Toggle favourite on the current patch (star in the Browser).");
     playBtn.onClick = [this] { proc.requestNote(); };
     randAll.onClick = [this] { proc.randomize (f4rt::randAll); };
     randSafe.onClick = [this] { proc.randomize (f4rt::randSafe); };
@@ -746,16 +822,20 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     search.setTextToShowWhenEmpty ("search / tags", kGrey);
     search.setText (proc.searchText, juce::dontSendNotification);
     search.onTextChange = [this] { proc.searchText = search.getText(); refreshBrowser(); };
+    search.setTooltip ("Filter factory and user patches by name or tag.");
     content.addChildComponent (search);
     browserModel.ed = this;
     browser.setModel (&browserModel);
     browser.setColour (juce::ListBox::backgroundColourId, kInk);
+    browser.setTooltip ("Click a row to load it. * = favourite.");
     content.addChildComponent (browser);
 
     vizMode.addItemList ({ "Wave", "Spectrum", "Spectrogram", "FM", "Env", "Matrix" }, 1);
     vizMode.setSelectedId (1, juce::dontSendNotification);
     vizMode.onChange = [this] { viz.mode = vizMode.getSelectedId() - 1; viz.repaint(); };
+    vizMode.setTooltip ("What the Viz page draws.");
     content.addChildComponent (vizMode);
+    viz.setTooltip ("Live view of the current Viz mode.");
     content.addChildComponent (viz);
 
     // Top bar.
@@ -765,6 +845,9 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     patchBar.onOpen = [this] { openPatchMenu(); };
     bankBar.onStep = [this] (int d) { cycleBank (d); };
     bankBar.onOpen = [this] { openBankMenu(); };
+    pageBar.setTooltip ("Page. Arrows step, click the name for the list.");
+    patchBar.setTooltip ("Patch. Arrows step factory then user; click for save / load.");
+    bankBar.setTooltip ("Category. Arrows jump to the first patch of the next category.");
     for (auto* c : { (juce::Component*) &pageBar, (juce::Component*) &patchBar,
                      (juce::Component*) &bankBar, (juce::Component*) &volumeStrip })
         content.addAndMakeVisible (c);

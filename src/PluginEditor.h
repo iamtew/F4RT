@@ -64,6 +64,7 @@ private:
                                float startAngle, float endAngle, juce::Slider&) override;
         void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
         void drawComboBox (juce::Graphics&, int, int, bool, int, int, int, int, juce::ComboBox&) override;
+        void drawTooltip (juce::Graphics&, const juce::String& text, int width, int height) override;
         juce::Font getLabelFont (juce::Label&) override;
         juce::Font getComboBoxFont (juce::ComboBox&) override;
     };
@@ -89,7 +90,8 @@ private:
     };
 
     // "<  text  >" bar: the 20px ends step, the middle opens a menu. Shared with K1X.
-    struct PatchBar : public juce::Component
+    struct PatchBar : public juce::Component,
+                      public juce::SettableTooltipClient
     {
         void paint (juce::Graphics& g) override;
         void mouseUp (const juce::MouseEvent& e) override;
@@ -101,7 +103,8 @@ private:
     };
 
     // Level fader (left) + output spectrum (right). Both flash yellow on clip.
-    struct VolumeStrip : public juce::Component
+    struct VolumeStrip : public juce::Component,
+                         public juce::SettableTooltipClient
     {
         explicit VolumeStrip (F4RTAudioProcessorEditor& ed);
         ~VolumeStrip() override;
@@ -125,18 +128,22 @@ private:
         juce::uint32 clipUntil = 0;
     };
 
-    struct Knob : public juce::Component
+    struct Knob : public juce::Component,
+                  public juce::SettableTooltipClient
     {
-        Knob (juce::AudioProcessorValueTreeState& st, const juce::String& id, const juce::String& name);
+        Knob (juce::AudioProcessorValueTreeState& st, const juce::String& id,
+              const juce::String& name, const juce::String& tip);
         void resized() override;
         juce::Label label;
         juce::Slider slider;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
     };
 
-    struct Combo : public juce::Component
+    struct Combo : public juce::Component,
+                   public juce::SettableTooltipClient
     {
-        Combo (juce::AudioProcessorValueTreeState& st, const juce::String& id, const juce::String& name);
+        Combo (juce::AudioProcessorValueTreeState& st, const juce::String& id,
+               const juce::String& name, const juce::String& tip);
         void resized() override;
         juce::Label label;
         juce::ComboBox box;
@@ -144,15 +151,18 @@ private:
     };
 
     // On/off switch for a bool parameter (matrix row on, FX on, LFO sync).
-    struct Toggle : public juce::Component
+    struct Toggle : public juce::Component,
+                    public juce::SettableTooltipClient
     {
-        Toggle (juce::AudioProcessorValueTreeState& st, const juce::String& id, const juce::String& name);
+        Toggle (juce::AudioProcessorValueTreeState& st, const juce::String& id,
+                const juce::String& name, const juce::String& tip);
         void resized() override;
         juce::ToggleButton btn;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> att;
     };
 
-    struct Viz : public juce::Component
+    struct Viz : public juce::Component,
+                 public juce::SettableTooltipClient
     {
         explicit Viz (F4RTAudioProcessorEditor& e) : ed (e) {}
         void paint (juce::Graphics&) override;
@@ -204,7 +214,7 @@ private:
     int editorPage = 0;
     std::unique_ptr<juce::FileChooser> chooser;
     juce::Image logo;
-    juce::TooltipWindow tip { this };
+    juce::TooltipWindow tip { this, 400 };  // hover help; 400 ms so it shows before you look away
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (F4RTAudioProcessorEditor)
 };
