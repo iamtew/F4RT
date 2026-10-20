@@ -100,8 +100,6 @@ inline void applyMacros (Params& p)
     p.distDrive += anger * 0.55f;
     if (p.distDrive > 1.f)
         p.distDrive = 1.f;
-    if (squelch > 0.7f)
-        p.filtType = filtComb;
     if (tox > 0.55f)
         p.distType = distFold;
     for (int i = 0; i < kNumOsc; ++i)

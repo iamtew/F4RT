@@ -632,7 +632,7 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
         "Resonance and formant mix. Wetter = squelchier.",
         "FM amount, FM envelope and distortion drive.",
         "Wobbles formant morph via LFO 1. Also a matrix source.",
-        "Resonance. Above about 0.7 switches the filter to comb.",
+        "Resonance. Higher = squelchier. Comb is a filter-type choice.",
         "Amp release. Longer rip = longer tail.",
         "Above about 0.55 switches distortion to fold. Also a matrix source."
     };

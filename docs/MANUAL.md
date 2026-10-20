@@ -29,7 +29,7 @@ Saved patches go to `%APPDATA%\Stupid Systems LLC\F4RT\Patches` as `.f4rtp`. Loa
 
 ## Macros
 
-Size, Wetness, Anger, Alienness, Squelch, Rip Length, Toxicity. They bake into decay, resonance, FM, formant motion, comb, release, and chaos.
+Size, Wetness, Anger, Alienness, Squelch, Rip Length, Toxicity. They bake into decay, resonance, FM, formant motion, release, and chaos. Comb is the filter type, not a Squelch threshold.
 
 ## Random
 
