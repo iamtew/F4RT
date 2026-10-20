@@ -2,6 +2,8 @@
 
 MIDI note-on starts a voice. Pitch follows the note. MPE channel pitch-bend and channel pressure are read. Mod wheel is a matrix source.
 
+Hover any control for a short explanation.
+
 ## Top bar
 
 Same layout as the sibling plugins (K1X, 5HKR, TEW03), left to right:
