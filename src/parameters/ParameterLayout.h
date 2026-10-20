@@ -9,9 +9,17 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     using namespace juce;
     AudioProcessorValueTreeState::ParameterLayout layout;
 
+    // Short readouts for knobs and host lanes: 0.45 -> "0.450", 18.5 -> "18.50", 1800 -> "1800".
+    // Whole-step ranges (voices, coarse, fine) never show decimals.
     auto addF = [&] (const char* id, const String& name, NormalisableRange<float> r, float def)
     {
-        layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, name, r, def));
+        const bool whole = r.interval >= 1.f;
+        const auto attrs = AudioParameterFloatAttributes().withStringFromValueFunction ([whole] (float v, int)
+        {
+            const float a = std::abs (v);
+            return String (v, whole || a >= 100.f ? 0 : a >= 1.f ? 2 : 3);
+        });
+        layout.add (std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, name, r, def, attrs));
     };
     auto addI = [&] (const char* id, const String& name, int def, const StringArray& choices)
     {
