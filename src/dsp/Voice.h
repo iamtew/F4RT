@@ -50,13 +50,13 @@ struct Params
     int formA = 0, formB = 1;
     float formMorph = 0.f, formTrack = 0.f, formMix = 0.f;
     int filtType = filtLP;
-    float cutoff = 1800.f, res = 0.25f, filtDrive = 0.1f, keyTrack = 0.3f, filtEnv = 0.4f;
+    float cutoff = 900.f, res = 0.55f, filtDrive = 0.1f, keyTrack = 0.3f, filtEnv = 0.75f;
     int distType = distSoft;
     float distDrive = 0.15f, distTone = 0.6f, distMix = 0.2f;
     EnvParams env[kNumEnv];
     LfoParams lfo[kNumLfo];
     float lfoDraw[kNumLfo][kLfoDrawN] {};
-    float macros[kNumMacro] { 0.45f, 0.35f, 0.2f, 0.1f, 0.3f, 0.4f, 0.05f };
+    float macros[kNumMacro] { 0.45f, 0.55f, 0.2f, 0.1f, 0.5f, 0.4f, 0.05f };
     int polyMode = 2;
     int voices = 8;
     float level = 0.7f;
@@ -66,7 +66,8 @@ inline Params defaultParams()
 {
     Params p;
     p.osc[0].vol = 0.85f;
-    p.osc[0].type = oscSine;
+    p.osc[0].type = oscSaw;
+    p.env[1].d = 0.08f;
     p.env[5].a = 0.001f;
     p.env[5].d = 0.16f;
     p.env[5].s = 0.f;

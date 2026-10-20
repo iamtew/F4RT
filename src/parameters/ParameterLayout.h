@@ -63,7 +63,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
         addF (ParamID::oFine[i], "Osc" + n + " Fine", fineR, 0.f);
         addF (ParamID::oPhase[i], "Osc" + n + " Phase", unit, 0.f);
         addF (ParamID::oWidth[i], "Osc" + n + " Width", unit, 0.f);
-        addI (ParamID::oType[i], "Osc" + n + " Type", 0, oscTypes);
+        addI (ParamID::oType[i], "Osc" + n + " Type", i == 0 ? 2 : 0, oscTypes);
         for (int j = 0; j < 4; ++j)
             addF (ParamID::fm[i][j], "FM " + String (i + 1) + ">" + String (j + 1), unit, 0.f);
     }
@@ -78,11 +78,11 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     addI (ParamID::vowel, "Vowel", 0, vowels);
 
     addI (ParamID::filtType, "Filter", 0, filtTypes);
-    addF (ParamID::cutoff, "Cutoff", hzR, 1800.f);
-    addF (ParamID::res, "Res", unit, 0.25f);
+    addF (ParamID::cutoff, "Cutoff", hzR, 900.f);
+    addF (ParamID::res, "Res", unit, 0.55f);
     addF (ParamID::filtDrive, "F Drive", unit, 0.1f);
     addF (ParamID::keyTrack, "Key Track", unit, 0.3f);
-    addF (ParamID::filtEnv, "F Env", unit, 0.4f);
+    addF (ParamID::filtEnv, "F Env", unit, 0.75f);
 
     addI (ParamID::distType, "Dist", 0, distTypes);
     addF (ParamID::distDrive, "D Drive", unit, 0.15f);
@@ -93,7 +93,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     for (int i = 0; i < 6; ++i)
     {
         addF (ParamID::eAtk[i], String (envN[i]) + " A", tR, i == 5 ? 0.001f : 0.005f);
-        addF (ParamID::eDec[i], String (envN[i]) + " D", tR, i == 5 ? 0.16f : 0.12f);
+        addF (ParamID::eDec[i], String (envN[i]) + " D", tR, i == 5 ? 0.16f : i == 1 ? 0.08f : 0.12f);
         addF (ParamID::eSus[i], String (envN[i]) + " S", unit, 0.f);
         addF (ParamID::eRel[i], String (envN[i]) + " R", tR, i == 5 ? 0.22f : 0.18f);
     }
@@ -106,7 +106,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     }
 
     static const char* macN[] = { "Size", "Wetness", "Anger", "Alienness", "Squelch", "Rip Length", "Toxicity" };
-    static const float macD[] = { 0.45f, 0.35f, 0.2f, 0.1f, 0.3f, 0.4f, 0.05f };
+    static const float macD[] = { 0.45f, 0.55f, 0.2f, 0.1f, 0.5f, 0.4f, 0.05f };
     for (int i = 0; i < 7; ++i)
         addF (ParamID::macro[i], macN[i], unit, macD[i]);
 
