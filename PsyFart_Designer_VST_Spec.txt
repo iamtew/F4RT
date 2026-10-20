@@ -1,0 +1,309 @@
+# F4RT - PsyFart Designer VST
+
+Product Name: F4RT 
+Framework: JUCE
+Targets: VST3, Standalone
+Language: C++
+
+## Goal
+Create a dedicated psytrance sound-design instrument focused on generating synthetic "psytrance fart" sounds, squelches, burps, zaps, croaks, FM stabs, growls, formant hits, and transition effects.
+
+The plugin should allow both instant preset generation and deep editing.
+
+## Core Concept
+A single MIDI note triggers a highly controllable synthesized transient sound.
+Users should be able to design anything from:
+
+- Classic Goa/Psy resonant farts
+- Full-on formant stabs
+- Forest psy croaks
+- Darkpsy chirps
+- Hi-tech laser burps
+- Neuro-inspired growls
+- Experimental alien vocal effects
+
+## Synthesis Engine
+
+### Oscillator Section
+4 oscillators.
+
+Oscillator types:
+- Sine
+- Triangle
+- Saw
+- Square
+- Wavetable
+- Noise
+- User wavetable import
+
+Per oscillator:
+- Volume
+- Pan
+- Coarse tune
+- Fine tune
+- Phase
+- Stereo width
+
+### FM Matrix
+Flexible FM routing.
+
+Controls:
+- Modulator source
+- Carrier destination
+- FM amount
+- FM envelope depth
+
+Presets:
+- Simple FM fart
+- Metallic bark
+- Alien chirp
+- Growl
+
+### Formant Engine
+Dedicated formant processor.
+
+Controls:
+- Formant A
+- Formant B
+- Morph
+- Tracking
+- Mix
+
+Vowel presets:
+- A
+- E
+- I
+- O
+- U
+
+### Filter Section
+Multiple filter models.
+
+Types:
+- Lowpass
+- Highpass
+- Bandpass
+- Notch
+- Comb
+- State Variable
+
+Controls:
+- Cutoff
+- Resonance
+- Drive
+- Key tracking
+- Envelope amount
+
+### Distortion Section
+Models:
+- Soft Clip
+- Hard Clip
+- Tube
+- Foldback
+- Bit Crush
+- Digital
+
+Controls:
+- Drive
+- Tone
+- Wet/Dry
+
+## Motion System
+
+### Multi Envelope System
+Minimum 6 envelopes.
+
+Assignable to:
+- Pitch
+- Filter
+- FM amount
+- Formant morph
+- Distortion drive
+- Volume
+
+### LFO System
+4 LFOs.
+
+Shapes:
+- Sine
+- Triangle
+- Ramp
+- Random
+- S&H
+- User drawable
+
+Sync:
+- Host sync
+- Free running
+
+## Fart Designer Macro Layer
+
+High-level controls:
+
+### Fart Size
+Controls overall weight and duration.
+
+### Wetness
+Controls resonance and formant intensity.
+
+### Anger
+Adds FM complexity and distortion.
+
+### Alienness
+Introduces random formant movement.
+
+### Squelch
+Boosts resonant filter character.
+
+### Rip Length
+Controls tail length.
+
+### Toxicity
+Adds chaos modulation and nonlinear filtering.
+
+## Random Generator
+One-click generation.
+
+Modes:
+- Clean
+- Psytrance
+- Forest
+- Darkpsy
+- Hi-Tech
+- Experimental
+
+Buttons:
+- Randomize All
+- Randomize Safe
+- Randomize Only FX
+- Mutate Current
+
+## Preset Browser
+Factory bank:
+
+At least 200 presets.
+
+Categories:
+- Classic Farts
+- Wet Farts
+- Acid Farts
+- Croaks
+- Burps
+- Chirps
+- Growls
+- Zaps
+- Lasers
+- FX
+
+Features:
+- Search
+- Favorites
+- Tags
+
+## Effects Rack
+Order configurable.
+
+Effects:
+- EQ
+- Compressor
+- Delay
+- Reverb
+- Chorus
+- Phaser
+- Flanger
+- Frequency Shifter
+- Granular FX
+
+## Performance Features
+
+### MIDI
+- Velocity sensitivity
+- Aftertouch
+- MPE compatible
+- Pitch bend
+- Mod wheel assignment
+
+### Polyphony
+Modes:
+- Mono
+- Legato
+- Poly
+
+Polyphony range:
+1-64 voices
+
+## Visualization
+Real-time displays.
+
+Displays:
+- Waveform
+- Spectrum
+- Spectrogram
+- FM routing graph
+- Envelope monitor
+- Modulation matrix viewer
+
+## Modulation Matrix
+Unlimited routing entries.
+
+Sources:
+- Envelopes
+- LFOs
+- Velocity
+- Aftertouch
+- Macros
+- Random generators
+
+Destinations:
+- Any exposed parameter
+
+## CPU Requirements
+Target:
+- Less than 5% CPU for default patch
+- Less than 15% CPU for complex patches
+
+## Architecture
+Suggested JUCE Classes
+
+- AudioProcessor
+- AudioProcessorEditor
+- Synthesiser
+- SynthesiserVoice
+- SynthesiserSound
+- DSPOscillator
+- FMEngine
+- FormantEngine
+- FilterEngine
+- DistortionEngine
+- ModulationMatrix
+- RandomPatchGenerator
+- PresetManager
+- SpectrumAnalyzer
+
+## Version 1.0 Deliverables
+
+Required:
+- Fully working VST3
+- Standalone application
+- 200 factory presets
+- Preset save/load
+- Random generation system
+- Modulation matrix
+- Formant engine
+- FM engine
+- Visualization suite
+
+## Future Versions
+
+V1.5
+- AI preset generation
+- Preset morphing
+- Sample import
+
+V2.0
+- Granular synthesis engine
+- Resynthesis from audio
+- User macro scripting
+
+Success Metric:
+A psytrance producer should be capable of creating hundreds of distinct psy-fart style sounds without requiring external processing.
