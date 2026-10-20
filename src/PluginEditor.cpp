@@ -8,12 +8,24 @@
 namespace
 {
 constexpr int kEditorW = 860;
-constexpr int kEditorH = 520;
+constexpr int kEditorH = 540;
 constexpr const char* kPageNames[] = { "Play", "Osc", "Filter", "Motion", "Matrix", "FX", "Browser", "Viz" };
-constexpr int kPageCount = 8;
 constexpr int kPad = 8;
 constexpr int kTitleH = 40;
+constexpr int kTitleHitW = 150;
 constexpr int kLabelH = 12;
+constexpr int kBtnRowH = 28;
+constexpr int kCatSize = 20;  // factory presets per category (FactoryBank: index / 20)
+constexpr int kCatCount = f4rt::kFactoryCount / kCatSize;
+
+// Patch menu ids. Factory and user entries are offsets so the ranges cannot collide.
+constexpr int kMenuInit = 1;
+constexpr int kMenuSave = 2;
+constexpr int kMenuSaveAs = 3;
+constexpr int kMenuExport = 4;
+constexpr int kMenuImport = 5;
+constexpr int kMenuFactory = 100;   // + factory index (0..199)
+constexpr int kMenuUser = 1000;     // + index into patchNames()
 
 using f4rt::kGreen;
 using f4rt::kYellow;
@@ -22,7 +34,16 @@ using f4rt::kGrey;
 using f4rt::kInk;
 using f4rt::kChassis;
 using f4rt::boldFont;
+
+juce::String factoryLabel (int i)
+{
+    char name[64];
+    f4rt::factoryName (i, name, 64);
+    return name;
+}
 } // namespace
+
+// ---------------------------------------------------------------- Cells
 
 F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
                                       const juce::String& id, const juce::String& name)
@@ -37,7 +58,8 @@ F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
     slider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
     slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     addAndMakeVisible (slider);
-    att = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (st, id, slider);
+    att = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (st, id, slider);    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (st.getParameter (id)))
+        slider.setDoubleClickReturnValue (true, p->convertFrom0to1 (p->getDefaultValue()));
 }
 
 void F4RTAudioProcessorEditor::Knob::resized()
@@ -54,6 +76,9 @@ F4RTAudioProcessorEditor::Combo::Combo (juce::AudioProcessorValueTreeState& st,
     label.setJustificationType (juce::Justification::centred);
     label.setColour (juce::Label::textColourId, kLight);
     addAndMakeVisible (label);
+    // ComboBoxAttachment does not add items; without this every box is empty.
+    if (auto* c = dynamic_cast<juce::AudioParameterChoice*> (st.getParameter (id)))
+        box.addItemList (c->choices, 1);
     addAndMakeVisible (box);
     att = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (st, id, box);
 }
@@ -62,8 +87,23 @@ void F4RTAudioProcessorEditor::Combo::resized()
 {
     auto r = getLocalBounds();
     label.setBounds (r.removeFromTop (kLabelH));
-    box.setBounds (r.reduced (2, 8));
+    box.setBounds (r.withSizeKeepingCentre (juce::jmin (r.getWidth() - 4, 120), 24));
 }
+
+F4RTAudioProcessorEditor::Toggle::Toggle (juce::AudioProcessorValueTreeState& st,
+                                          const juce::String& id, const juce::String& name)
+{
+    btn.setButtonText (name);
+    addAndMakeVisible (btn);
+    att = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (st, id, btn);
+}
+
+void F4RTAudioProcessorEditor::Toggle::resized()
+{
+    btn.setBounds (getLocalBounds().withSizeKeepingCentre (juce::jmin (getWidth() - 4, 72), 24));
+}
+
+// ---------------------------------------------------------------- Look
 
 void F4RTAudioProcessorEditor::PanelLnF::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h,
                                                            float pos, float startAngle, float endAngle,
@@ -87,11 +127,13 @@ void F4RTAudioProcessorEditor::PanelLnF::drawRotarySlider (juce::Graphics& g, in
     g.drawLine (c.x, c.y, needle.x, needle.y, 2.2f);
 }
 
-void F4RTAudioProcessorEditor::PanelLnF::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool, bool)
+void F4RTAudioProcessorEditor::PanelLnF::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool over, bool)
 {
     auto bounds = b.getLocalBounds().toFloat().reduced (2.f);
-    g.setColour (b.getToggleState() ? kGreen.withAlpha (0.85f) : kInk);
+    g.setColour (b.getToggleState() ? kGreen.withAlpha (0.85f) : (over ? kInk.brighter (0.12f) : kInk));
     g.fillRoundedRectangle (bounds, 3.f);
+    g.setColour (kGrey);
+    g.drawRoundedRectangle (bounds.reduced (0.5f), 3.f, 1.f);
     g.setFont (boldFont (11.f));
     g.setColour (b.getToggleState() ? kInk : kLight);
     g.drawText (b.getButtonText(), bounds.toNearestInt(), juce::Justification::centred, false);
@@ -105,16 +147,25 @@ void F4RTAudioProcessorEditor::PanelLnF::drawComboBox (juce::Graphics& g, int wi
     g.fillRoundedRectangle (r, 3.f);
     g.setColour (kYellow.withAlpha (0.5f));
     g.drawRoundedRectangle (r.reduced (0.5f), 3.f, 1.f);
+    // Small down-chevron so it reads as a dropdown.
+    juce::Path p;
+    const float cx = (float) width - 9.f, cy = (float) height * 0.5f;
+    p.addTriangle (cx - 4.f, cy - 2.f, cx + 4.f, cy - 2.f, cx, cy + 3.f);
+    g.setColour (kYellow);
+    g.fillPath (p);
 }
 
 juce::Font F4RTAudioProcessorEditor::PanelLnF::getLabelFont (juce::Label&) { return boldFont (11.f); }
 juce::Font F4RTAudioProcessorEditor::PanelLnF::getComboBoxFont (juce::ComboBox&) { return boldFont (11.f); }
+
+// ---------------------------------------------------------------- About
 
 F4RTAudioProcessorEditor::AboutBox::AboutBox()
 {
     status.setJustificationType (juce::Justification::centred);
     status.setColour (juce::Label::textColourId, kLight);
     addAndMakeVisible (status);
+    // ToggleButton is only used for the LnF look here, so it must not latch.
     checkBtn.setClickingTogglesState (false);
     closeBtn.setClickingTogglesState (false);
     checkBtn.onClick = [this] { checkForUpdate(); };
@@ -181,6 +232,8 @@ void F4RTAudioProcessorEditor::AboutBox::checkForUpdate()
         return;
     status.setText ("Checking...", juce::dontSendNotification);
     releasesBtn.setVisible (false);
+    // Network on a detached thread; the result hops back to the message thread
+    // and is dropped if the editor closed meanwhile (SafePointer goes null).
     juce::Component::SafePointer<AboutBox> safe (this);
     std::thread ([safe]
     {
@@ -220,6 +273,169 @@ void F4RTAudioProcessorEditor::AboutBox::checkForUpdate()
         });
     }).detach();
 }
+
+// ---------------------------------------------------------------- Top bar widgets
+
+void F4RTAudioProcessorEditor::PatchBar::setText (const juce::String& t)
+{
+    if (text == t)
+        return;
+    text = t;
+    repaint();
+}
+
+void F4RTAudioProcessorEditor::PatchBar::paint (juce::Graphics& g)
+{
+    auto r = getLocalBounds().toFloat();
+    g.setColour (kInk);
+    g.fillRoundedRectangle (r, 4.f);
+    g.setColour (kGrey);
+    g.drawRoundedRectangle (r.reduced (0.5f), 4.f, 1.f);
+
+    auto left = r.removeFromLeft (18.f);
+    auto right = r.removeFromRight (18.f);
+    auto chev = [] (juce::Rectangle<float> box, bool back)
+    {
+        juce::Path p;
+        const float cx = box.getCentreX();
+        const float cy = box.getCentreY();
+        if (back)
+            p.addTriangle (cx + 3.f, cy - 5.f, cx - 4.f, cy, cx + 3.f, cy + 5.f);
+        else
+            p.addTriangle (cx - 3.f, cy - 5.f, cx + 4.f, cy, cx - 3.f, cy + 5.f);
+        return p;
+    };
+    g.setColour (kGreen);
+    g.fillPath (chev (left, true));
+    g.fillPath (chev (right, false));
+    g.setColour (kLight);
+    g.setFont (boldFont (12.f));
+    g.drawText (text, r.toNearestInt(), juce::Justification::centred, true);
+}
+
+void F4RTAudioProcessorEditor::PatchBar::mouseUp (const juce::MouseEvent& e)
+{
+    if (! e.mouseWasClicked())
+        return;
+    if (e.x < 20)
+    {
+        if (onStep)
+            onStep (-1);
+    }
+    else if (e.x > getWidth() - 20)
+    {
+        if (onStep)
+            onStep (1);
+    }
+    else if (onOpen)
+        onOpen();
+}
+
+F4RTAudioProcessorEditor::VolumeStrip::VolumeStrip (F4RTAudioProcessorEditor& ed)
+    : editor (ed)
+{
+    slider.setLookAndFeel (&lnf);
+    slider.setSliderStyle (juce::Slider::LinearHorizontal);
+    slider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    slider.setOpaque (false);
+    slider.setColour (juce::Slider::backgroundColourId, juce::Colours::transparentBlack);
+    slider.setColour (juce::Slider::trackColourId, juce::Colours::transparentBlack);
+    slider.setTooltip ("Level");
+    if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (editor.proc.apvts.getParameter (ParamID::level)))
+        slider.setDoubleClickReturnValue (true, p->convertFrom0to1 (p->getDefaultValue()));
+    sliderAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        editor.proc.apvts, ParamID::level, slider);
+    addAndMakeVisible (slider);
+}
+
+F4RTAudioProcessorEditor::VolumeStrip::~VolumeStrip()
+{
+    slider.setLookAndFeel (nullptr);
+}
+
+juce::Rectangle<float> F4RTAudioProcessorEditor::VolumeStrip::faderArea() const
+{
+    auto r = getLocalBounds().toFloat();
+    return r.removeFromLeft (r.getWidth() * 5.f / 9.f);
+}
+
+juce::Rectangle<float> F4RTAudioProcessorEditor::VolumeStrip::scopeArea() const
+{
+    auto r = getLocalBounds().toFloat();
+    r.removeFromLeft (r.getWidth() * 5.f / 9.f + 4.f);
+    return r;
+}
+
+void F4RTAudioProcessorEditor::VolumeStrip::resized()
+{
+    slider.setBounds (faderArea().toNearestInt());
+}
+
+void F4RTAudioProcessorEditor::VolumeStrip::LnF::drawLinearSlider (juce::Graphics& g, int, int y, int, int h,
+                                                                  float pos, float, float,
+                                                                  juce::Slider::SliderStyle, juce::Slider&)
+{
+    const float by = (float) (y + h);
+    juce::Path p;
+    p.addTriangle (pos - 5.f, by, pos + 5.f, by, pos, by - 7.f);
+    g.setColour (kInk);
+    g.fillPath (p);
+    g.setColour (kLight);
+    g.strokePath (p, juce::PathStrokeType (1.f));
+}
+
+void F4RTAudioProcessorEditor::VolumeStrip::paint (juce::Graphics& g)
+{
+    auto fader = faderArea();
+    auto scope = scopeArea();
+
+    g.setColour (kInk);
+    g.fillRoundedRectangle (fader, 3.f);
+    g.fillRoundedRectangle (scope, 3.f);
+
+    const float pos = (float) slider.valueToProportionOfLength (slider.getValue());
+    auto fill = fader.withWidth (juce::jmax (2.f, fader.getWidth() * pos));
+    g.setColour (clipped ? kYellow : kGrey);
+    g.fillRoundedRectangle (fill, 3.f);
+
+    g.setColour (kLight.withAlpha (0.35f));
+    for (int i = 1; i < 8; ++i)
+    {
+        const float x = fader.getX() + fader.getWidth() * (float) i / 8.f;
+        const float tickH = (i == 4) ? 6.f : 3.f;
+        g.drawLine (x, fader.getBottom() - 2.f, x, fader.getBottom() - 2.f - tickH, 1.f);
+    }
+
+    // Output spectrum on a 20 Hz..20 kHz log axis, read from the analyser's last finished FFT.
+    const auto& a = editor.proc.analyser;
+    const float* mag = a.magDb[a.magBank];
+    const int n = juce::jlimit (2, 256, (int) scope.getWidth());
+    const double hzPerBin = a.sampleRate / (double) f4rt::Analyser::fftSize;
+    juce::Path spec;
+    spec.startNewSubPath (scope.getX(), scope.getBottom());
+    for (int i = 0; i < n; ++i)
+    {
+        const float x01 = (float) i / (float) (n - 1);
+        const double hz = 20.0 * std::pow (1000.0, (double) x01);
+        const int bin = juce::jlimit (1, f4rt::Analyser::bins - 1, (int) std::lround (hz / hzPerBin));
+        const float y01 = 1.f - juce::jlimit (0.f, 1.f, (mag[bin] + 84.f) / 72.f);
+        spec.lineTo (scope.getX() + x01 * scope.getWidth(), scope.getY() + y01 * scope.getHeight());
+    }
+    spec.lineTo (scope.getRight(), scope.getBottom());
+    spec.closeSubPath();
+    g.setColour ((clipped ? kYellow : kGreen).withAlpha (0.7f));
+    g.fillPath (spec);
+}
+
+void F4RTAudioProcessorEditor::VolumeStrip::refresh()
+{
+    if (editor.proc.clipFlag.exchange (false, std::memory_order_relaxed))
+        clipUntil = juce::Time::getMillisecondCounter() + 800;
+    clipped = juce::Time::getMillisecondCounter() < clipUntil;
+    repaint();
+}
+
+// ---------------------------------------------------------------- Viz
 
 void F4RTAudioProcessorEditor::Viz::paint (juce::Graphics& g)
 {
@@ -290,22 +506,29 @@ void F4RTAudioProcessorEditor::Viz::paint (juce::Graphics& g)
     }
     else
     {
+        // Active matrix routes, by name.
         g.setColour (kLight);
         g.setFont (boldFont (11.f));
-        auto mx = ed.proc.currentMatrix();
+        auto& st = ed.proc.apvts;
         int y = 8;
         for (int i = 0; i < f4rt::kMatrixSlots && y < (int) r.getHeight(); ++i)
         {
-            if (! mx.row[i].on)
+            if (st.getRawParameterValue (ParamID::mxOn[i])->load() < 0.5f)
                 continue;
-            g.drawText ("src " + juce::String (mx.row[i].src) + " -> " + juce::String (mx.row[i].dest)
-                            + "  " + juce::String (mx.row[i].amt, 2),
+            g.drawText (juce::String (i + 1) + ": " + st.getParameter (ParamID::mxSrc[i])->getCurrentValueAsText()
+                            + " -> " + st.getParameter (ParamID::mxDst[i])->getCurrentValueAsText()
+                            + "  " + st.getParameter (ParamID::mxAmt[i])->getCurrentValueAsText(),
                         (int) r.getX() + 8, (int) r.getY() + y, (int) r.getWidth() - 16, 14,
                         juce::Justification::centredLeft, true);
             y += 16;
         }
+        if (y == 8)
+            g.drawText ("No active routes. Switch a row On on the Matrix page.", r.toNearestInt(),
+                        juce::Justification::centred, false);
     }
 }
+
+// ---------------------------------------------------------------- Browser
 
 void F4RTAudioProcessorEditor::BrowserModel::paintListBoxItem (int row, juce::Graphics& g, int w, int h, bool sel)
 {
@@ -321,40 +544,71 @@ void F4RTAudioProcessorEditor::BrowserModel::listBoxItemClicked (int row, const 
 {
     if (ed == nullptr || row < 0 || row >= rows.size())
         return;
-    const auto name = rows[row];
+    auto name = rows[row];
+    if (name.endsWith (" *"))  // favourite marker
+        name = name.dropLastCharacters (2);
+    // Factory rows are "007 | Name  [tags]"; user rows are the bare file name.
     if (name.contains (" | "))
-    {
-        const int idx = name.upToFirstOccurrenceOf (" |", false, false).getIntValue() - 1;
-        ed->proc.loadFactory (idx);
-    }
+        ed->proc.loadFactory (name.upToFirstOccurrenceOf (" |", false, false).getIntValue() - 1);
     else
         ed->proc.loadPatchByName (name);
+    ed->refreshBars();
 }
+
+// ---------------------------------------------------------------- Editor
 
 F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     : AudioProcessorEditor (&p), proc (p)
 {
     setLookAndFeel (&panelLnF);
+    setOpaque (true);
+    panelLnF.setColour (juce::PopupMenu::backgroundColourId, kInk);
+    panelLnF.setColour (juce::PopupMenu::textColourId, kLight);
+    panelLnF.setColour (juce::PopupMenu::highlightedBackgroundColourId, kGreen);
+    panelLnF.setColour (juce::PopupMenu::highlightedTextColourId, kInk);
+    panelLnF.setColour (juce::ComboBox::textColourId, kLight);
+    panelLnF.setColour (juce::ComboBox::arrowColourId, kYellow);
     logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
 
-    auto addK = [this] (const juce::String& id, const juce::String& name)
+    // Each add* creates the control and appends it to a page's grid, in reading order.
+    int page = 0;
+    auto addK = [this, &page] (const char* id, const juce::String& name)
     {
         auto* k = knobs.add (new Knob (proc.apvts, id, name));
-        content.addAndMakeVisible (k);
+        content.addChildComponent (k);
+        pageItems[page].add (k);
     };
-    auto addC = [this] (const juce::String& id, const juce::String& name)
+    auto addC = [this, &page] (const char* id, const juce::String& name)
     {
         auto* c = combos.add (new Combo (proc.apvts, id, name));
-        content.addAndMakeVisible (c);
+        content.addChildComponent (c);
+        pageItems[page].add (c);
+    };
+    auto addT = [this, &page] (const char* id, const juce::String& name)
+    {
+        auto* t = toggles.add (new Toggle (proc.apvts, id, name));
+        content.addChildComponent (t);
+        pageItems[page].add (t);
+    };
+    auto gap = [this, &page] (int n)
+    {
+        for (int i = 0; i < n; ++i)
+            pageItems[page].add (nullptr);
     };
 
+    // Play: 7 macros, then voice setup. 5 columns -> 2 rows.
+    page = 0;
+    pageCols[page] = 5;
+    static const char* macN[] = { "Size", "Wetness", "Anger", "Alienness", "Squelch", "Rip Length", "Toxicity" };
     for (int i = 0; i < 7; ++i)
-        addK (ParamID::macro[i], ParamID::macro[i]);
-    addK (ParamID::level, "Level");
+        addK (ParamID::macro[i], macN[i]);
     addK (ParamID::voices, "Voices");
     addC (ParamID::polyMode, "Poly");
-    addC (ParamID::randMode, "Rand");
+    addC (ParamID::randMode, "Rand Mode");
 
+    // Osc: one row per oscillator (type, 6 knobs, FM into osc 1..4), then FM env + recipe.
+    page = 1;
+    pageCols[page] = 11;
     for (int i = 0; i < 4; ++i)
     {
         addC (ParamID::oType[i], "Osc" + juce::String (i + 1));
@@ -365,28 +619,34 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
         addK (ParamID::oPhase[i], "Phase");
         addK (ParamID::oWidth[i], "Width");
         for (int j = 0; j < 4; ++j)
-            addK (ParamID::fm[i][j], "FM" + juce::String (i + 1) + juce::String (j + 1));
+            addK (ParamID::fm[i][j], "FM" + juce::String (i + 1) + ">" + juce::String (j + 1));
     }
     addK (ParamID::fmEnvDepth, "FM Env");
     addC (ParamID::fmRecipe, "Recipe");
 
+    // Filter: formant row, filter row, distortion row.
+    page = 2;
+    pageCols[page] = 6;
     addC (ParamID::formA, "Form A");
     addC (ParamID::formB, "Form B");
+    addC (ParamID::vowel, "Vowel");
     addK (ParamID::formMorph, "Morph");
     addK (ParamID::formTrack, "Track");
     addK (ParamID::formMix, "Mix");
-    addC (ParamID::vowel, "Vowel");
     addC (ParamID::filtType, "Filter");
     addK (ParamID::cutoff, "Cutoff");
     addK (ParamID::res, "Res");
-    addK (ParamID::filtDrive, "F Drive");
+    addK (ParamID::filtDrive, "Drive");
     addK (ParamID::keyTrack, "Key");
-    addK (ParamID::filtEnv, "F Env");
+    addK (ParamID::filtEnv, "Env");
     addC (ParamID::distType, "Dist");
-    addK (ParamID::distDrive, "D Drive");
+    addK (ParamID::distDrive, "Drive");
     addK (ParamID::distTone, "Tone");
-    addK (ParamID::distMix, "D Mix");
+    addK (ParamID::distMix, "Mix");
 
+    // Motion: two envelopes per row, then two LFOs per row.
+    page = 3;
+    pageCols[page] = 8;
     static const char* envN[] = { "Pitch", "Filt", "FM", "Form", "Dist", "Amp" };
     for (int i = 0; i < 6; ++i)
     {
@@ -400,115 +660,118 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
         addC (ParamID::lShape[i], "LFO" + juce::String (i + 1));
         addK (ParamID::lRate[i], "Rate");
         addK (ParamID::lAmt[i], "Amt");
+        addT (ParamID::lSync[i], "Sync");
     }
 
+    // Matrix: first 8 of 32 routes, two per row. A route does nothing until it is On.
+    page = 4;
+    pageCols[page] = 8;
     for (int i = 0; i < 8; ++i)
     {
+        addT (ParamID::mxOn[i], "On " + juce::String (i + 1));
         addC (ParamID::mxSrc[i], "Src");
         addC (ParamID::mxDst[i], "Dst");
         addK (ParamID::mxAmt[i], "Amt");
     }
 
-    addK (ParamID::eqLo, "EQ Lo");
-    addK (ParamID::eqMid, "EQ Mid");
-    addK (ParamID::eqHi, "EQ Hi");
-    addK (ParamID::cmpTh, "Comp Th");
-    addK (ParamID::cmpRt, "Ratio");
-    addK (ParamID::dlyT, "Delay");
-    addK (ParamID::dlyFb, "FB");
-    addK (ParamID::revSz, "Rev");
-    addK (ParamID::revDm, "Damp");
-    addK (ParamID::choRt, "Cho R");
-    addK (ParamID::choDp, "Cho D");
-    addK (ParamID::phRt, "Ph R");
-    addK (ParamID::phDp, "Ph D");
-    addK (ParamID::flRt, "Fl R");
-    addK (ParamID::flFb, "Fl FB");
-    addK (ParamID::shHz, "Shift");
-    addK (ParamID::grSz, "Grain");
-    addK (ParamID::grDn, "Dens");
+    // FX: three effects per row, each "On + up to 3 knobs", then the 9 order slots.
+    page = 5;
+    pageCols[page] = 12;
+    struct FxSpec { const char* on; const char* name; const char* k[3]; const char* kn[3]; };
+    static const FxSpec kFx[] = {
+        { ParamID::eqOn,  "EQ",      { ParamID::eqLo, ParamID::eqMid, ParamID::eqHi }, { "Lo", "Mid", "Hi" } },
+        { ParamID::cmpOn, "Comp",    { ParamID::cmpTh, ParamID::cmpRt, nullptr },      { "Thresh", "Ratio", nullptr } },
+        { ParamID::dlyOn, "Delay",   { ParamID::dlyT, ParamID::dlyFb, nullptr },       { "Time", "FB", nullptr } },
+        { ParamID::revOn, "Reverb",  { ParamID::revSz, ParamID::revDm, nullptr },      { "Size", "Damp", nullptr } },
+        { ParamID::choOn, "Chorus",  { ParamID::choRt, ParamID::choDp, nullptr },      { "Rate", "Depth", nullptr } },
+        { ParamID::phOn,  "Phaser",  { ParamID::phRt, ParamID::phDp, nullptr },        { "Rate", "Depth", nullptr } },
+        { ParamID::flOn,  "Flanger", { ParamID::flRt, ParamID::flFb, nullptr },        { "Rate", "FB", nullptr } },
+        { ParamID::shOn,  "Shift",   { ParamID::shHz, nullptr, nullptr },              { "Hz", nullptr, nullptr } },
+        { ParamID::grOn,  "Grain",   { ParamID::grSz, ParamID::grDn, nullptr },        { "Size", "Dens", nullptr } },
+    };
+    for (const auto& fx : kFx)
+    {
+        addT (fx.on, fx.name);
+        for (int k = 0; k < 3; ++k)
+        {
+            if (fx.k[k] != nullptr)
+                addK (fx.k[k], fx.kn[k]);
+            else
+                gap (1);
+        }
+    }
     for (int i = 0; i < 9; ++i)
-        addC (ParamID::fxSlot[i], "Slot" + juce::String (i + 1));
+        addC (ParamID::fxSlot[i], "Slot " + juce::String (i + 1));
 
-    auto setupBtn = [this] (juce::ToggleButton& b)
+    pageCols[6] = 1;
+    pageCols[7] = 1;
+
+    // Button rows. ToggleButtons are only used for the LnF look here, so they must not latch.
+    for (auto* b : { &playBtn, &randAll, &randSafe, &randFx, &randMut, &saveBtn, &loadBtn, &favBtn, &wtBtn, &recipeBtn })
     {
-        b.setClickingTogglesState (false);
-        content.addAndMakeVisible (b);
-    };
-    setupBtn (playBtn);
+        b->setClickingTogglesState (false);
+        content.addChildComponent (b);
+    }
+    pageButtons[0] = { &playBtn, &randAll, &randSafe, &randFx, &randMut, &recipeBtn, &wtBtn };
+    pageButtons[1] = { &recipeBtn, &wtBtn };
+    pageButtons[6] = { &saveBtn, &loadBtn, &favBtn };
+
+    playBtn.setTooltip ("Play a test note (C3)");
+    randAll.setTooltip ("Random new patch (uses Rand Mode)");
+    randSafe.setTooltip ("Random, tamer ranges");
+    randFx.setTooltip ("Random delay / reverb only");
+    randMut.setTooltip ("Nudge the current patch");
+    recipeBtn.setTooltip ("Apply the FM recipe chosen on the Osc page");
     playBtn.onClick = [this] { proc.requestNote(); };
-    setupBtn (randAll);
     randAll.onClick = [this] { proc.randomize (f4rt::randAll); };
-    setupBtn (randSafe);
     randSafe.onClick = [this] { proc.randomize (f4rt::randSafe); };
-    setupBtn (randFx);
     randFx.onClick = [this] { proc.randomize (f4rt::randFxOnly); };
-    setupBtn (randMut);
     randMut.onClick = [this] { proc.randomize (f4rt::randMutate); };
-    setupBtn (saveBtn);
-    saveBtn.onClick = [this]
-    {
-        chooser = std::make_unique<juce::FileChooser> ("Save patch", proc.patchesDir(), "*.f4rtp");
-        chooser->launchAsync (juce::FileBrowserComponent::saveMode, [this] (const juce::FileChooser& c)
-        {
-            auto f = c.getResult();
-            if (f.existsAsFile() || f.getFileName().isNotEmpty())
-                proc.savePatchAs (f.getFileNameWithoutExtension());
-        });
-    };
-    setupBtn (loadBtn);
-    loadBtn.onClick = [this]
-    {
-        chooser = std::make_unique<juce::FileChooser> ("Load patch", proc.patchesDir(), "*.f4rtp");
-        chooser->launchAsync (juce::FileBrowserComponent::openMode, [this] (const juce::FileChooser& c)
-        {
-            auto f = c.getResult();
-            if (f.existsAsFile())
-                proc.importPatch (f);
-        });
-    };
-    setupBtn (favBtn);
+    saveBtn.onClick = [this] { chooseSaveAs(); };
+    loadBtn.onClick = [this] { chooseImport(); };
     favBtn.onClick = [this] { proc.toggleFavorite (proc.patchName()); refreshBrowser(); };
-    setupBtn (wtBtn);
+    recipeBtn.onClick = [this] { applyFmRecipe(); };
     wtBtn.onClick = [this]
     {
         chooser = std::make_unique<juce::FileChooser> ("Wavetable", juce::File(), "*.wav;*.aif;*.aiff");
-        chooser->launchAsync (juce::FileBrowserComponent::openMode, [this] (const juce::FileChooser& c)
-        {
-            auto f = c.getResult();
-            if (f.existsAsFile())
-                proc.importWavetable (f);
-        });
+        juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+        chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                              [safe] (const juce::FileChooser& c)
+                              {
+                                  if (safe != nullptr && c.getResult().existsAsFile())
+                                      safe->proc.importWavetable (c.getResult());
+                              });
     };
-    setupBtn (recipeBtn);
-    recipeBtn.onClick = [this] { applyFmRecipe(); };
 
     search.setTextToShowWhenEmpty ("search / tags", kGrey);
+    search.setText (proc.searchText, juce::dontSendNotification);
     search.onTextChange = [this] { proc.searchText = search.getText(); refreshBrowser(); };
-    content.addAndMakeVisible (search);
+    content.addChildComponent (search);
     browserModel.ed = this;
     browser.setModel (&browserModel);
-    content.addAndMakeVisible (browser);
+    browser.setColour (juce::ListBox::backgroundColourId, kInk);
+    content.addChildComponent (browser);
 
-    for (int i = 0; i < kPageCount; ++i)
-        pageBox.addItem (kPageNames[i], i + 1);
-    pageBox.setSelectedId (1, juce::dontSendNotification);
-    pageBox.onChange = [this] { setEditorPage (pageBox.getSelectedId() - 1); };
-    content.addAndMakeVisible (pageBox);
-
-    vizMode.addItem ("Wave", 1);
-    vizMode.addItem ("Spectrum", 2);
-    vizMode.addItem ("Spectrogram", 3);
-    vizMode.addItem ("FM", 4);
-    vizMode.addItem ("Env", 5);
-    vizMode.addItem ("Matrix", 6);
-    vizMode.setSelectedId (1);
+    vizMode.addItemList ({ "Wave", "Spectrum", "Spectrogram", "FM", "Env", "Matrix" }, 1);
+    vizMode.setSelectedId (1, juce::dontSendNotification);
     vizMode.onChange = [this] { viz.mode = vizMode.getSelectedId() - 1; viz.repaint(); };
-    content.addAndMakeVisible (vizMode);
-    content.addAndMakeVisible (viz);
+    content.addChildComponent (vizMode);
+    content.addChildComponent (viz);
+
+    // Top bar.
+    pageBar.onStep = [this] (int d) { cyclePage (d); };
+    pageBar.onOpen = [this] { openPageMenu(); };
+    patchBar.onStep = [this] (int d) { cyclePatch (d); };
+    patchBar.onOpen = [this] { openPatchMenu(); };
+    bankBar.onStep = [this] (int d) { cycleBank (d); };
+    bankBar.onOpen = [this] { openBankMenu(); };
+    for (auto* c : { (juce::Component*) &pageBar, (juce::Component*) &patchBar,
+                     (juce::Component*) &bankBar, (juce::Component*) &volumeStrip })
+        content.addAndMakeVisible (c);
+    pageBar.setText (kPageNames[0]);
+    refreshBars();
 
     content.addChildComponent (aboutBox);
-    aboutBox.setVisible (false);
 
     refreshBrowser();
     applyPageVisibility();
@@ -517,6 +780,9 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     baseH = kEditorH;
     content.setSize (baseW, baseH);
     addAndMakeVisible (content);
+
+    // Drag the corner to scale (40%..150%), aspect ratio locked. The scale is saved with the session.
+    // Read it first: setResizeLimits clamps the still-empty editor and resized() overwrites uiScale.
     const float s = juce::jlimit (0.4f, 1.5f, proc.uiScale);
     setResizable (true, true);
     setResizeLimits (baseW * 2 / 5, baseH * 2 / 5, baseW * 3 / 2, baseH * 3 / 2);
@@ -533,198 +799,147 @@ F4RTAudioProcessorEditor::~F4RTAudioProcessorEditor()
 
 void F4RTAudioProcessorEditor::timerCallback()
 {
-    viz.repaint();
-    proc.uiScale = (float) getWidth() / (float) baseW;
+    refreshBars();
+    volumeStrip.refresh();
+    if (editorPage == 7)
+        viz.repaint();
 }
 
-void F4RTAudioProcessorEditor::paint (juce::Graphics&) {}
-
-void F4RTAudioProcessorEditor::paintContent (juce::Graphics& g)
+void F4RTAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (kChassis);
-    g.setColour (kInk);
-    g.fillRect (0, 0, baseW, kTitleH);
-    if (logo.isValid())
-        g.drawImage (logo, juce::Rectangle<float> (8.f, 6.f, 28.f, 28.f));
-    g.setColour (kYellow);
-    g.setFont (boldFont (18.f));
-    g.drawText ("F4RT  v" JucePlugin_VersionString, 42, 0, 280, kTitleH, juce::Justification::centredLeft, false);
-    g.setColour (kGreen);
-    g.setFont (boldFont (12.f));
-    g.drawText (proc.patchName(), 320, 0, 240, kTitleH, juce::Justification::centredLeft, false);
+    g.fillAll (kChassis);  // covers the sub-pixel edge the scaled content may leave
 }
 
 void F4RTAudioProcessorEditor::resized()
 {
     if (baseW == 0)
-        return;
+        return;  // called before the constructor finished
     const float s = (float) getWidth() / (float) baseW;
     content.setTransform (juce::AffineTransform::scale (s));
     content.setBounds (0, 0, baseW, baseH);
+    proc.uiScale = s;
+}
+
+void F4RTAudioProcessorEditor::paintContent (juce::Graphics& g)
+{
+    g.fillAll (kChassis);
+
+    auto r = content.getLocalBounds().reduced (kPad);
+    auto title = r.removeFromTop (kTitleH);
+    if (logo.isValid())
+    {
+        auto logoR = title.removeFromLeft (kTitleH).reduced (2);
+        g.drawImage (logo, logoR.toFloat(), juce::RectanglePlacement::centred);
+        title.removeFromLeft (6);
+    }
+    auto nameCol = title.removeFromLeft (kTitleHitW - kTitleH - 6);
+    g.setColour (kYellow);
+    g.setFont (boldFont (16.f));
+    g.drawText ("F4RT", nameCol.removeFromTop (22), juce::Justification::centredLeft, false);
+    g.setColour (kLight);
+    g.setFont (boldFont (10.f));
+    g.drawText ("v" JucePlugin_VersionString, nameCol, juce::Justification::centredLeft, false);
+
+    g.setColour (kChassis.brighter (0.08f));
+    g.drawRoundedRectangle (content.getLocalBounds().toFloat().reduced (1.5f), 2.f, 2.f);
 }
 
 void F4RTAudioProcessorEditor::layoutContent()
 {
-    auto r = juce::Rectangle<int> (0, 0, baseW, baseH);
-    auto top = r.removeFromTop (kTitleH);
-    pageBox.setBounds (top.removeFromRight (140).reduced (8, 8));
-    r.reduce (kPad, kPad);
+    auto r = content.getLocalBounds().reduced (kPad);
+    auto title = r.removeFromTop (kTitleH);
+    title.removeFromLeft (kTitleHitW);
+    volumeStrip.setBounds (title.removeFromRight (240).reduced (2, 4));
+    pageBar.setBounds (title.removeFromLeft (88).reduced (4, 4));
+    const int barW = title.getWidth() / 2;
+    patchBar.setBounds (title.removeFromLeft (barW).reduced (4, 4));
+    bankBar.setBounds (title.reduced (4, 4));
+    r.removeFromTop (4);
 
-    auto grid = [&] (juce::Array<juce::Component*> items, int cols, juce::Rectangle<int> area)
+    if (! pageButtons[editorPage].isEmpty())
     {
-        if (items.isEmpty())
-            return;
-        const int rows = (items.size() + cols - 1) / cols;
-        const int cw = area.getWidth() / cols;
-        const int rh = area.getHeight() / juce::jmax (1, rows);
-        for (int i = 0; i < items.size(); ++i)
-            items[i]->setBounds (area.getX() + (i % cols) * cw, area.getY() + (i / cols) * rh, cw, rh);
-    };
+        auto row = r.removeFromTop (kBtnRowH);
+        for (auto* b : pageButtons[editorPage])
+            b->setBounds (row.removeFromLeft (84).reduced (2, 2));
+        r.removeFromTop (4);
+    }
 
-    juce::Array<juce::Component*> show;
-    auto takeKnobs = [&] (int from, int n)
+    if (editorPage == 6)
     {
-        for (int i = 0; i < n; ++i)
-            show.add (knobs[from + i]);
-    };
-    auto takeCombos = [&] (int from, int n)
-    {
-        for (int i = 0; i < n; ++i)
-            show.add (combos[from + i]);
-    };
-
-    // Index map from construction order.
-    // knobs: 0-6 macros, 7 level, 8 voices,
-    // then 4*(vol pan coarse fine phase width + 4 fm) = 4*10 = 40 starting at 9
-    // fmEnv 49
-    // form morph track mix 50-52, cutoff res fdrive key fenv 53-57, ddrive tone dmix 58-60
-    // env 6*4 = 24 starting 61, lfo rate/amt 4*2 = 8 starting 85
-    // mx amt 8 starting 93
-    // fx knobs 18 starting 101
-    //
-    // combos: poly, rand, 4 osc type, recipe, formA formB vowel filt dist,
-    // 4 lfo shape, 8*2 mx src/dst, 9 fx slots
-
-    playBtn.setBounds (0, 0, 0, 0);
-    const bool play = editorPage == 0;
-    const bool osc = editorPage == 1;
-    const bool filt = editorPage == 2;
-    const bool motion = editorPage == 3;
-    const bool matrix = editorPage == 4;
-    const bool fxPage = editorPage == 5;
-    const bool brow = editorPage == 6;
-    const bool vizP = editorPage == 7;
-
-    auto btnRow = r.removeFromTop (play || brow ? 28 : 0);
-    if (play)
-    {
-        playBtn.setBounds (btnRow.removeFromLeft (70).reduced (2, 2));
-        randAll.setBounds (btnRow.removeFromLeft (70).reduced (2, 2));
-        randSafe.setBounds (btnRow.removeFromLeft (70).reduced (2, 2));
-        randFx.setBounds (btnRow.removeFromLeft (70).reduced (2, 2));
-        randMut.setBounds (btnRow.removeFromLeft (80).reduced (2, 2));
-        recipeBtn.setBounds (btnRow.removeFromLeft (90).reduced (2, 2));
-        wtBtn.setBounds (btnRow.removeFromLeft (100).reduced (2, 2));
-        takeKnobs (0, 9);
-        takeCombos (0, 2);
-        grid (show, 6, r);
-    }
-    else if (osc)
-    {
-        takeCombos (2, 5); // osc types + recipe
-        takeKnobs (9, 41);
-        grid (show, 8, r);
-    }
-    else if (filt)
-    {
-        takeCombos (7, 5); // formA B vowel filt dist
-        takeKnobs (50, 11);
-        grid (show, 6, r);
-    }
-    else if (motion)
-    {
-        takeKnobs (61, 32);
-        takeCombos (12, 4);
-        grid (show, 8, r);
-    }
-    else if (matrix)
-    {
-        takeCombos (16, 16);
-        takeKnobs (93, 8);
-        grid (show, 6, r);
-    }
-    else if (fxPage)
-    {
-        takeKnobs (101, 18);
-        takeCombos (32, 9);
-        grid (show, 7, r);
-    }
-    else if (brow)
-    {
-        saveBtn.setBounds (btnRow.removeFromLeft (70).reduced (2, 2));
-        loadBtn.setBounds (btnRow.removeFromLeft (70).reduced (2, 2));
-        favBtn.setBounds (btnRow.removeFromLeft (70).reduced (2, 2));
         search.setBounds (r.removeFromTop (24));
         r.removeFromTop (4);
         browser.setBounds (r);
     }
-    else if (vizP)
+    else if (editorPage == 7)
     {
         vizMode.setBounds (r.removeFromTop (24).removeFromLeft (160));
         r.removeFromTop (4);
         viz.setBounds (r);
     }
+    else
+    {
+        const auto& items = pageItems[editorPage];
+        const int cols = juce::jmax (1, pageCols[editorPage]);
+        const int rows = juce::jmax (1, (items.size() + cols - 1) / cols);
+        const int cw = r.getWidth() / cols;
+        const int rh = juce::jmin (r.getHeight() / rows, 130);  // sparse pages stay compact
+        for (int i = 0; i < items.size(); ++i)
+            if (items[i] != nullptr)
+                items[i]->setBounds (r.getX() + (i % cols) * cw, r.getY() + (i / cols) * rh, cw, rh);
+    }
 
-    aboutBox.setBounds (0, 0, baseW, baseH);
+    aboutBox.setBounds (content.getLocalBounds());
 }
 
 void F4RTAudioProcessorEditor::applyPageVisibility()
 {
-    auto visPage = [this] (juce::Component& c, bool v) { c.setVisible (v); };
-    visPage (playBtn, editorPage == 0);
-    visPage (randAll, editorPage == 0);
-    visPage (randSafe, editorPage == 0);
-    visPage (randFx, editorPage == 0);
-    visPage (randMut, editorPage == 0);
-    visPage (recipeBtn, editorPage == 0 || editorPage == 1);
-    visPage (wtBtn, editorPage == 0 || editorPage == 1);
-    visPage (saveBtn, editorPage == 6);
-    visPage (loadBtn, editorPage == 6);
-    visPage (favBtn, editorPage == 6);
-    visPage (search, editorPage == 6);
-    visPage (browser, editorPage == 6);
-    visPage (viz, editorPage == 7);
-    visPage (vizMode, editorPage == 7);
-
-    for (auto* k : knobs)
-        k->setVisible (false);
-    for (auto* c : combos)
-        c->setVisible (false);
-
-    auto showK = [this] (int from, int n)
+    for (int p = 0; p < kPageCount; ++p)
     {
-        for (int i = 0; i < n && from + i < knobs.size(); ++i)
-            knobs[from + i]->setVisible (true);
-    };
-    auto showC = [this] (int from, int n)
-    {
-        for (int i = 0; i < n && from + i < combos.size(); ++i)
-            combos[from + i]->setVisible (true);
-    };
-
-    if (editorPage == 0) { showK (0, 9); showC (0, 2); }
-    if (editorPage == 1) { showC (2, 5); showK (9, 41); }
-    if (editorPage == 2) { showC (7, 5); showK (50, 11); }
-    if (editorPage == 3) { showK (61, 32); showC (12, 4); }
-    if (editorPage == 4) { showC (16, 16); showK (93, 8); }
-    if (editorPage == 5) { showK (101, 18); showC (32, 9); }
+        for (auto* c : pageItems[p])
+            if (c != nullptr)
+                c->setVisible (false);
+        for (auto* c : pageButtons[p])
+            c->setVisible (false);
+    }
+    for (auto* c : pageItems[editorPage])
+        if (c != nullptr)
+            c->setVisible (true);
+    for (auto* c : pageButtons[editorPage])
+        c->setVisible (true);
+    search.setVisible (editorPage == 6);
+    browser.setVisible (editorPage == 6);
+    vizMode.setVisible (editorPage == 7);
+    viz.setVisible (editorPage == 7);
     layoutContent();
+    if (aboutBox.isVisible())
+        aboutBox.toFront (false);
 }
 
 void F4RTAudioProcessorEditor::setEditorPage (int page)
 {
     editorPage = juce::jlimit (0, kPageCount - 1, page);
+    pageBar.setText (kPageNames[editorPage]);
     applyPageVisibility();
+}
+
+void F4RTAudioProcessorEditor::cyclePage (int delta)
+{
+    setEditorPage ((editorPage + delta + kPageCount) % kPageCount);
+}
+
+void F4RTAudioProcessorEditor::openPageMenu()
+{
+    juce::PopupMenu m;
+    m.setLookAndFeel (&panelLnF);  // menus are top-level windows and would otherwise use the default look
+    for (int i = 0; i < kPageCount; ++i)
+        m.addItem (i + 1, kPageNames[i], true, i == editorPage);
+    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (pageBar),
+                     [safe] (int result)
+                     {
+                         if (safe != nullptr && result > 0)
+                             safe->setEditorPage (result - 1);
+                     });
 }
 
 void F4RTAudioProcessorEditor::contentMouseUp (const juce::MouseEvent& e)
@@ -735,13 +950,194 @@ void F4RTAudioProcessorEditor::contentMouseUp (const juce::MouseEvent& e)
 
 juce::Rectangle<int> F4RTAudioProcessorEditor::titleHitBounds() const
 {
-    return { 0, 0, 300, kTitleH };
+    return { kPad, kPad, kTitleHitW, kTitleH };
 }
 
 void F4RTAudioProcessorEditor::openAbout()
 {
     aboutBox.setVisible (true);
     aboutBox.toFront (true);
+}
+
+// ---------------------------------------------------------------- Patches
+//
+// One flat list for the arrows: 200 factory seeds (10 categories x 20), then user .f4rtp files.
+
+void F4RTAudioProcessorEditor::refreshBars()
+{
+    const int fi = proc.factoryIndex();
+    const auto name = proc.patchName();
+    patchBar.setText (name);
+    bankBar.setText (fi >= 0 ? juce::String (f4rt::kCats[fi / kCatSize])
+                             : (name == "Init Patch" ? juce::String ("Init") : juce::String ("User")));
+}
+
+void F4RTAudioProcessorEditor::cyclePatch (int delta)
+{
+    const auto user = proc.patchNames();
+    const int total = f4rt::kFactoryCount + user.size();
+    int pos = proc.factoryIndex();
+    if (pos < 0)
+    {
+        const int u = user.indexOf (proc.patchName());
+        pos = u >= 0 ? f4rt::kFactoryCount + u : -1;
+    }
+    pos = pos < 0 ? (delta > 0 ? 0 : total - 1) : (pos + delta + total) % total;
+    if (pos < f4rt::kFactoryCount)
+        proc.loadFactory (pos);
+    else
+        proc.loadPatchByName (user[pos - f4rt::kFactoryCount]);
+    refreshBars();
+}
+
+void F4RTAudioProcessorEditor::cycleBank (int delta)
+{
+    const int fi = proc.factoryIndex();
+    const int cat = fi < 0 ? (delta > 0 ? 0 : kCatCount - 1)
+                           : (fi / kCatSize + delta + kCatCount) % kCatCount;
+    proc.loadFactory (cat * kCatSize);
+    refreshBars();
+}
+
+void F4RTAudioProcessorEditor::openPatchMenu()
+{
+    const auto user = proc.patchNames();
+    const auto cur = proc.patchName();
+    const int fi = proc.factoryIndex();
+
+    juce::PopupMenu m;
+    m.setLookAndFeel (&panelLnF);  // menus are top-level windows and would otherwise use the default look
+    m.addItem (kMenuInit, "Init Patch", true, cur == "Init Patch");
+    m.addSeparator();
+    m.addItem (kMenuSave, "Save");
+    m.addItem (kMenuSaveAs, "Save As...");
+    m.addItem (kMenuExport, "Export...");
+    m.addItem (kMenuImport, "Import...");
+    m.addSeparator();
+    for (int c = 0; c < kCatCount; ++c)
+    {
+        juce::PopupMenu sub;
+        for (int i = c * kCatSize; i < (c + 1) * kCatSize; ++i)
+            sub.addItem (kMenuFactory + i, factoryLabel (i), true, i == fi);
+        m.addSubMenu (f4rt::kCats[c], sub, true, nullptr, fi >= 0 && fi / kCatSize == c);
+    }
+    if (! user.isEmpty())
+    {
+        juce::PopupMenu sub;
+        for (int i = 0; i < user.size(); ++i)
+            sub.addItem (kMenuUser + i, user[i], true, fi < 0 && user[i] == cur);
+        m.addSeparator();
+        m.addSubMenu ("User", sub, true, nullptr, fi < 0 && user.contains (cur));
+    }
+
+    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (patchBar),
+                     [safe, user] (int result)
+                     {
+                         if (safe == nullptr || result <= 0)
+                             return;
+                         auto& pr = safe->proc;
+                         if (result == kMenuInit)
+                             pr.initPatch();
+                         else if (result == kMenuSave)
+                         {
+                             // Factory and Init have no file yet: ask for a name.
+                             if (pr.factoryIndex() >= 0 || ! pr.savePatch())
+                                 safe->chooseSaveAs();
+                         }
+                         else if (result == kMenuSaveAs)
+                             safe->chooseSaveAs();
+                         else if (result == kMenuExport)
+                             safe->chooseExport();
+                         else if (result == kMenuImport)
+                             safe->chooseImport();
+                         else if (result >= kMenuUser)
+                         {
+                             if (juce::isPositiveAndBelow (result - kMenuUser, user.size()))
+                                 pr.loadPatchByName (user[result - kMenuUser]);
+                         }
+                         else if (result >= kMenuFactory)
+                             pr.loadFactory (result - kMenuFactory);
+                         safe->refreshBars();
+                     });
+}
+
+void F4RTAudioProcessorEditor::openBankMenu()
+{
+    const int fi = proc.factoryIndex();
+    juce::PopupMenu m;
+    m.setLookAndFeel (&panelLnF);  // menus are top-level windows and would otherwise use the default look
+    for (int c = 0; c < kCatCount; ++c)
+        m.addItem (c + 1, f4rt::kCats[c], true, fi >= 0 && fi / kCatSize == c);
+    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (bankBar),
+                     [safe] (int result)
+                     {
+                         if (safe == nullptr || result <= 0)
+                             return;
+                         safe->proc.loadFactory ((result - 1) * kCatSize);
+                         safe->refreshBars();
+                     });
+}
+
+void F4RTAudioProcessorEditor::chooseSaveAs()
+{
+    const auto start = proc.patchesDir().getChildFile (proc.patchName() + ".f4rtp");
+    chooser = std::make_unique<juce::FileChooser> ("Save Patch", start, "*.f4rtp");
+    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                              | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [safe] (const juce::FileChooser& c)
+                          {
+                              if (safe == nullptr)
+                                  return;
+                              const auto file = c.getResult();
+                              if (file.getFullPathName().isEmpty())
+                                  return;
+                              // Always lands in the library folder so it shows up in the patch list.
+                              safe->proc.savePatchAs (file.getFileNameWithoutExtension());
+                              safe->refreshBars();
+                              safe->refreshBrowser();
+                          });
+}
+
+void F4RTAudioProcessorEditor::chooseExport()
+{
+    const auto start = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
+                           .getChildFile (proc.patchName() + ".f4rtp");
+    chooser = std::make_unique<juce::FileChooser> ("Export Patch", start, "*.f4rtp");
+    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                              | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [safe] (const juce::FileChooser& c)
+                          {
+                              if (safe == nullptr)
+                                  return;
+                              const auto file = c.getResult();
+                              if (file.getFullPathName().isNotEmpty())
+                                  safe->proc.exportPatch (file);
+                          });
+}
+
+void F4RTAudioProcessorEditor::chooseImport()
+{
+    chooser = std::make_unique<juce::FileChooser> (
+        "Import Patch", juce::File::getSpecialLocation (juce::File::userDocumentsDirectory), "*.f4rtp");
+    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [safe] (const juce::FileChooser& c)
+                          {
+                              if (safe == nullptr)
+                                  return;
+                              const auto file = c.getResult();
+                              if (! file.existsAsFile())
+                                  return;
+                              safe->proc.importPatch (file);
+                              safe->refreshBars();
+                              safe->refreshBrowser();
+                          });
 }
 
 void F4RTAudioProcessorEditor::applyFmRecipe()
@@ -755,20 +1151,19 @@ void F4RTAudioProcessorEditor::refreshBrowser()
 {
     browserModel.rows.clear();
     const auto q = proc.searchText.trim().toLowerCase();
+    const auto favs = proc.favoriteNames();
     for (int i = 0; i < f4rt::kFactoryCount; ++i)
     {
-        char name[64];
-        f4rt::factoryName (i, name, 64);
-        const auto e = f4rt::factoryAt (i);
-        juce::String row = juce::String (i + 1).paddedLeft ('0', 3) + " | " + name + "  [" + e.tags + "]";
-        if (proc.isFavorite (name))
+        const auto name = factoryLabel (i);
+        juce::String row = juce::String (i + 1).paddedLeft ('0', 3) + " | " + name + "  [" + f4rt::factoryAt (i).tags + "]";
+        if (favs.contains (name))
             row += " *";
-        if (q.isEmpty() || row.toLowerCase().contains (q) || juce::String (e.tags).contains (q)
-            || juce::String (e.cat).toLowerCase().contains (q))
+        if (q.isEmpty() || row.toLowerCase().contains (q))
             browserModel.rows.add (row);
     }
     for (const auto& n : proc.patchNames())
         if (q.isEmpty() || n.toLowerCase().contains (q))
-            browserModel.rows.add (n);
+            browserModel.rows.add (favs.contains (n) ? n + " *" : n);
     browser.updateContent();
+    browser.repaint();
 }
