@@ -61,11 +61,15 @@ public:
     void toggleFavorite (const juce::String& name);
     bool isFavorite (const juce::String& name) const;
 
+    // 0..kFactoryCount-1 while a factory patch is loaded, -1 for Init and user patches.
+    // Lives in the state tree so it survives session reloads.
+    int factoryIndex() const;
+
     f4rt::Analyser analyser;
     float envMon[6] {};
-    int factoryIndex = 0;
     juce::String searchText;
     float uiScale = 0.9f;
+    std::atomic<bool> clipFlag { false };  // set by the audio thread, consumed by the volume strip
 
     void requestNote() { pendingNote.store (true, std::memory_order_relaxed); }
 

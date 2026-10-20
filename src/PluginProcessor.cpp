@@ -7,6 +7,7 @@
 namespace
 {
 const juce::Identifier kPatchName { "PATCH_NAME" };
+const juce::Identifier kFactory { "FACTORY" };
 constexpr const char* kInitPatch = "Init Patch";
 constexpr const char* kPatchExt = ".f4rtp";
 
@@ -251,13 +252,21 @@ void F4RTAudioProcessor::randomize (int kind)
 
 void F4RTAudioProcessor::loadFactory (int index)
 {
+    index = juce::jlimit (0, f4rt::kFactoryCount - 1, index);
+    // Factory seeds only cover Params; start from Init so FX and matrix of the previous patch do not leak in.
+    initPatch();
     f4rt::Params p;
     f4rt::loadFactory (p, index);
     writeParams (p);
-    factoryIndex = index;
     char name[64];
     f4rt::factoryName (index, name, 64);
     apvts.state.setProperty (kPatchName, juce::String (name), nullptr);
+    apvts.state.setProperty (kFactory, index, nullptr);
+}
+
+int F4RTAudioProcessor::factoryIndex() const
+{
+    return (int) apvts.state.getProperty (kFactory, -1);
 }
 
 bool F4RTAudioProcessor::importWavetable (const juce::File& file)
@@ -290,6 +299,8 @@ void F4RTAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     auto mx = currentMatrix();
     engine.render (buffer, midi, p, mx, hostBpm());
     fx.process (buffer, apvts);
+    if (buffer.getMagnitude (0, buffer.getNumSamples()) >= 1.f)
+        clipFlag.store (true, std::memory_order_relaxed);
     analyser.push (buffer);
     for (int i = 0; i < 6; ++i)
         envMon[i] = engine.slot[0].voice.env[i].level;
@@ -334,6 +345,7 @@ void F4RTAudioProcessor::initPatch()
         param->endChangeGesture();
     }
     apvts.state.setProperty (kPatchName, kInitPatch, nullptr);
+    apvts.state.setProperty (kFactory, -1, nullptr);
 }
 
 bool F4RTAudioProcessor::loadPatchByName (const juce::String& name)
@@ -350,6 +362,7 @@ bool F4RTAudioProcessor::loadPatchByName (const juce::String& name)
         return false;
     apvts.replaceState (juce::ValueTree::fromXml (*xml));
     apvts.state.setProperty (kPatchName, stem, nullptr);
+    apvts.state.setProperty (kFactory, -1, nullptr);
     return true;
 }
 
@@ -359,6 +372,7 @@ bool F4RTAudioProcessor::savePatchAs (const juce::String& name)
     if (stem.isEmpty() || stem == kInitPatch)
         return false;
     apvts.state.setProperty (kPatchName, stem, nullptr);
+    apvts.state.setProperty (kFactory, -1, nullptr);  // a saved copy is a user patch now
     auto xml = apvts.copyState().createXml();
     if (xml == nullptr)
         return false;

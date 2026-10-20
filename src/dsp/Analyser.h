@@ -28,9 +28,11 @@ struct Analyser
     int specCol = 0;
     float envMon[6] {};
     float fmVis[4][4] {};
+    double sampleRate = 44100.0;  // bin -> Hz for the log-axis views
 
-    void prepare (double)
+    void prepare (double sr)
     {
+        sampleRate = sr > 0.0 ? sr : 44100.0;
         fifoIdx = 0;
         waveW = 0;
         specCol = 0;
