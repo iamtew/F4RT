@@ -623,17 +623,17 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
             pageItems[page].add (nullptr);
     };
 
-    // Play: 7 macros, then voice setup. 5 columns -> 2 rows.
+    // Play: 7 macros, then voice setup. 5 columns.
     page = 0;
     pageCols[page] = 5;
     static const char* macN[] = { "Size", "Wetness", "Anger", "Alienness", "Squelch", "Rip Length", "Toxicity" };
     static const char* macT[] = {
-        "Amp decay and cutoff. Bigger = longer, darker.",
+        "Amp decay and cutoff, baked when the note starts. Bigger = longer, darker.",
         "Resonance and formant mix. Wetter = squelchier.",
         "FM amount, FM envelope and distortion drive.",
         "Wobbles formant morph via LFO 1. Also a matrix source.",
         "Resonance. Higher = squelchier. Comb is a filter-type choice.",
-        "Amp release. Longer rip = longer tail.",
+        "Amp release, baked when the note starts. Longer rip = longer tail.",
         "Above about 0.55 switches distortion to fold. Also a matrix source."
     };
     for (int i = 0; i < 7; ++i)

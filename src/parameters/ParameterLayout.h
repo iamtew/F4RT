@@ -112,7 +112,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
 
     addI (ParamID::polyMode, "Poly", 2, polyModes);
     addF (ParamID::voices, "Voices", NormalisableRange<float> (1.f, 64.f, 1.f), 8.f);
-    addF (ParamID::level, "Level", unit, 0.7f);
+    addF (ParamID::level, "Level", NormalisableRange<float> (0.f, 4.f), 0.7f);
     addI (ParamID::randMode, "Rand Mode", 1, randModes);
 
     for (int i = 0; i < 32; ++i)

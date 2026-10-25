@@ -124,6 +124,7 @@ struct Voice
     float bend = 0.f; // semitones
     float age = 0.f;
     bool gate = false;
+    bool oneShot = false; // amp sustain near 0: the note finishes itself
     const float* userWt = nullptr;
     float builtIn[kWtN] {};
 
@@ -149,22 +150,40 @@ struct Voice
         for (float& s : lastOsc)
             s = 0.f;
         gate = false;
+        oneShot = false;
         age = 0.f;
     }
 
-    void start (float hz, float velocity, const Params& p)
+    // Macros scale decay and release. Bake them here; process() never rewrites envelope times.
+    void armEnvs (const Params& baked)
+    {
+        for (int i = 0; i < kNumEnv; ++i)
+        {
+            float d = baked.env[i].d;
+            float s = baked.env[i].s;
+            const float r = baked.env[i].r;
+            if (i == 5 && oneShot)
+            {
+                d += r; // the tail is part of the note, so a fast note-off cannot chop it
+                s = 0.f;
+            }
+            env[i].setTimes (sr, baked.env[i].a, d, s, r);
+            env[i].noteOn();
+        }
+    }
+
+    void start (float hz, float velocity, const Params& raw)
     {
         noteHz = hz;
         vel = velocity;
         age = 0.f;
         gate = true;
+        Params baked = raw;
+        applyMacros (baked);
+        oneShot = baked.env[5].s < 0.05f;
         for (int i = 0; i < kNumOsc; ++i)
-            osc[i].reset (p.osc[i].phase, p.osc[i].width);
-        for (int i = 0; i < kNumEnv; ++i)
-        {
-            env[i].setTimes (sr, p.env[i].a, p.env[i].d, p.env[i].s, p.env[i].r);
-            env[i].noteOn();
-        }
+            osc[i].reset (raw.osc[i].phase, raw.osc[i].width);
+        armEnvs (baked);
         for (int i = 0; i < kNumLfo; ++i)
             lfo[i].reset ((uint32_t) (i + 3) * 91u);
         formant.reset();
@@ -175,6 +194,8 @@ struct Voice
     void release()
     {
         gate = false;
+        if (oneShot)
+            return; // a tap plays the whole note
         for (auto& e : env)
             e.noteOff();
     }
@@ -270,24 +291,51 @@ struct Voice
         l = mono * amp;
         r = mono * amp;
         age += 1.f / sr;
+        if (oneShot && env[5].stage == Adsr::Sustain)
+            env[5].reset(); // one toot is done; free the voice
     }
 };
 
-inline void renderMono (float* dest, int n, double sampleRate, Params p)
+// Same path as the plugin: macros bake inside the voice, once. A note-off at 64 samples
+// is the Play button (on and off in one block). One-shots ignore it.
+inline void renderMono (float* dest, int n, double sampleRate, const Params& p)
 {
     Voice v;
     v.prepare (sampleRate);
     Matrix mx;
-    applyMacros (p);
     v.start (midiNoteToHz (48.f), 1.f, p);
     for (int i = 0; i < n; ++i)
     {
         float l = 0.f, r = 0.f;
         v.process (p, mx, 120.f, 0.f, l, r);
         dest[i] = 0.5f * (l + r);
-        if (i == n / 4)
+        if (i == 64)
             v.release();
     }
+}
+
+// Peak of one tapped note. Level sits after distortion, so it scales the peak.
+inline float phrasePeak (const Params& p, double sampleRate = 44100.0)
+{
+    Voice v;
+    v.prepare (sampleRate);
+    Matrix mx;
+    v.start (midiNoteToHz (48.f), 1.f, p);
+    float peak = 0.f;
+    const int n = (int) (sampleRate * 3.0);
+    for (int i = 0; i < n; ++i)
+    {
+        float l = 0.f, r = 0.f;
+        v.process (p, mx, 120.f, 0.f, l, r);
+        const float a = std::abs (0.5f * (l + r));
+        if (a > peak)
+            peak = a;
+        if (i == 64)
+            v.release();
+        if (i > 64 && ! v.active())
+            break;
+    }
+    return peak;
 }
 
 } // namespace f4rt

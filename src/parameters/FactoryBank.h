@@ -58,7 +58,7 @@ inline void factoryName (int i, char* out, int n)
 inline void loadFactory (Params& p, int i)
 {
     const auto e = factoryAt (i);
-    fillParams (p, e.seed, e.mode, randAll);
+    fillParams (p, e.seed, e.mode, randAll, i / 20);
 }
 
 } // namespace f4rt

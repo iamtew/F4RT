@@ -29,7 +29,9 @@ Saved patches go to `%APPDATA%\Stupid Systems LLC\F4RT\Patches` as `.f4rtp`. Loa
 
 ## Macros
 
-Size, Wetness, Anger, Alienness, Squelch, Rip Length, Toxicity. They bake into decay, resonance, FM, formant motion, release, and chaos. Comb is the filter type, not a Squelch threshold.
+Size, Wetness, Anger, Alienness, Squelch, Rip Length, Toxicity. They bake into decay, resonance, FM, formant motion, and release. Size and Rip are read when the note starts. Comb is the filter type, not a Squelch threshold.
+
+A tap — amp sustain near zero, including the Play button — finishes that one note even when note-off arrives in the same block. Amp sustain up is a normal held note.
 
 ## Random
 

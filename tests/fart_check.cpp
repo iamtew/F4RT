@@ -31,11 +31,11 @@ int main()
     f4rt::fillParams (a, 1, f4rt::randPsy, f4rt::randAll);
     f4rt::fillParams (b, 2, f4rt::randPsy, f4rt::randAll);
     assert (std::abs (a.cutoff - b.cutoff) > 1.f || std::abs (a.macros[2] - b.macros[2]) > 0.01f);
-    assert (a.filtType == f4rt::filtLP);
+    assert (a.filtType == f4rt::filtLP || a.filtType == f4rt::filtComb);
     assert (a.osc[0].type == f4rt::oscSaw || a.osc[0].type == f4rt::oscSquare);
     assert (a.filtEnv >= 0.7f);
     assert (a.macros[4] <= 0.68f);
-    assert (b.filtType == f4rt::filtLP);
+    assert (b.filtType == f4rt::filtLP || b.filtType == f4rt::filtComb);
     assert (b.osc[0].type == f4rt::oscSaw || b.osc[0].type == f4rt::oscSquare);
     assert (b.filtEnv >= 0.7f);
     assert (b.macros[4] <= 0.68f);
@@ -50,6 +50,45 @@ int main()
     f4rt::factoryName (20, n1, 64);
     assert (std::strcmp (n0, n1) != 0);
     assert (f4rt::kFactoryCount == 200);
+
+    // A tap (note-off after 64 samples) still plays the body. A chopped held note does not.
+    // Peaks of fat and bright seeds sit in one band.
+    auto energyOf = [] (const f4rt::Params& patch, int n)
+    {
+        std::vector<float> buf ((size_t) n);
+        f4rt::renderMono (buf.data(), n, 44100.0, patch);
+        float e = 0.f;
+        for (float s : buf)
+            e += s * s;
+        return e;
+    };
+    f4rt::Params fat;
+    f4rt::loadFactory (fat, 0);
+    assert (fat.osc[2].type == f4rt::oscSine);
+    assert (fat.osc[2].coarse == -12.f);
+    assert (fat.env[5].s == 0.f);
+    const int phraseN = 44100 * 4;
+    const float ePhrase = energyOf (fat, phraseN);
+    f4rt::Params chopped = fat;
+    chopped.env[5].s = 0.8f;
+    chopped.env[5].a = 0.02f;
+    chopped.env[5].r = 0.01f;
+    const float eChop = energyOf (chopped, phraseN);
+    assert (ePhrase > eChop * 4.f);
+
+    f4rt::Params chirp;
+    f4rt::loadFactory (chirp, 100);
+    assert (chirp.cutoff >= 900.f);
+
+    const int seeds[] = { 0, 20, 40, 100, 140, 180 };
+    for (int index : seeds)
+    {
+        f4rt::Params patch;
+        f4rt::loadFactory (patch, index);
+        const float peak = f4rt::phrasePeak (patch);
+        assert (peak > 0.25f);
+        assert (peak < 1.2f);
+    }
 
     f4rt::Formant f;
     f.set (44100.f, 0, 4, 0.f, 0.f, 261.63f);

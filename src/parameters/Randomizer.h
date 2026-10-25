@@ -76,7 +76,64 @@ inline void applyFmPreset (Params& p, int which)
     }
 }
 
-inline void fillParams (Params& p, uint32_t seed, int mode, int kind)
+// Chirp, zap and laser stay one bright toot. Every other category is a fat phrase.
+// cat < 0 is the randomize button: hi-tech and experimental stay bright.
+inline bool fatPhrase (int cat, int mode)
+{
+    if (cat >= 0)
+        return cat != 5 && cat != 7 && cat != 8;
+    return mode != randHiTech && mode != randExp;
+}
+
+inline void shapeFart (Params& p, Rng& rng, bool fat)
+{
+    if (p.osc[0].coarse < -5.f)
+        p.osc[0].coarse = -5.f;
+    if (p.osc[0].coarse > 3.f)
+        p.osc[0].coarse = 3.f;
+
+    // Osc 3 is the body. Nothing FM's it, or the sub turns into a buzz.
+    p.osc[2].type = oscSine;
+    p.osc[2].coarse = -12.f;
+    p.osc[2].fine = 0.f;
+    p.osc[2].pan = 0.5f;
+    p.osc[2].vol = fat ? rng.range (0.45f, 0.7f) : rng.range (0.2f, 0.35f);
+    for (int i = 0; i < kNumOsc; ++i)
+        p.fm[i][2] = 0.f;
+
+    p.osc[3].type = oscNoise;
+    p.osc[3].coarse = 0.f;
+    p.osc[3].vol = fat ? rng.range (0.05f, 0.16f) : rng.range (0.02f, 0.08f);
+
+    p.env[5].s = 0.f;
+    if (! fat)
+    {
+        if (p.cutoff < 900.f)
+            p.cutoff = rng.range (900.f, 3200.f); // chirp / zap / laser stay bright
+        return;
+    }
+    p.filtType = rng.uni() < 0.75f ? filtLP : filtComb;
+    p.cutoff = rng.range (220.f, 980.f);
+    p.env[5].a = rng.range (0.001f, 0.012f);
+    p.env[5].d = rng.range (0.28f, 0.62f);
+    p.env[5].r = rng.range (0.12f, 0.4f);
+    p.macros[0] = rng.range (0.45f, 0.9f);
+}
+
+// Level is after distortion, so one render scales. Message thread only.
+inline void matchLevel (Params& p)
+{
+    const float peak = phrasePeak (p);
+    if (peak < 1.0e-4f)
+        return;
+    p.level *= 0.45f / peak;
+    if (p.level > 3.5f)
+        p.level = 3.5f;
+    if (p.level < 0.15f)
+        p.level = 0.15f;
+}
+
+inline void fillParams (Params& p, uint32_t seed, int mode, int kind, int cat = -1)
 {
     Rng rng (seed);
     if (kind == randMutate)
@@ -122,51 +179,57 @@ inline void fillParams (Params& p, uint32_t seed, int mode, int kind)
         p.macros[6] = rng.range (0.f, 0.35f);
         p.lfo[0].rateHz = rng.range (0.5f, 12.f);
         p.lfo[0].amt = rng.range (0.f, 0.35f);
-        return;
     }
-    p.osc[0].type = safe ? oscSine : rng.irange (0, 4);
-    p.osc[0].vol = rng.range (0.6f, 0.95f);
-    p.osc[0].coarse = (float) rng.irange (safe ? -5 : -24, safe ? 7 : 19);
-    p.osc[1].vol = rng.range (0.f, safe ? 0.2f : 0.5f);
-    p.osc[1].type = rng.irange (0, 3);
-    p.osc[1].coarse = (float) rng.irange (7, 24);
-    if (! safe)
+    else
     {
-        p.osc[2].vol = rng.range (0.f, 0.3f);
-        p.osc[2].type = oscNoise;
-        p.osc[3].vol = rng.range (0.f, 0.2f);
-        p.osc[3].type = oscWavetable;
+        p.osc[0].type = safe ? oscSine : rng.irange (0, 4);
+        p.osc[0].vol = rng.range (0.6f, 0.95f);
+        p.osc[0].coarse = (float) rng.irange (safe ? -5 : -24, safe ? 7 : 19);
+        p.osc[1].vol = rng.range (0.f, safe ? 0.2f : 0.5f);
+        p.osc[1].type = rng.irange (0, 3);
+        p.osc[1].coarse = (float) rng.irange (7, 24);
+        if (! safe)
+        {
+            p.osc[2].vol = rng.range (0.f, 0.3f);
+            p.osc[2].type = oscNoise;
+            p.osc[3].vol = rng.range (0.f, 0.2f);
+            p.osc[3].type = oscWavetable;
+        }
+        applyFmPreset (p, mode == randClean ? 0 : rng.irange (0, 3));
+
+        p.formA = rng.irange (0, 4);
+        p.formB = rng.irange (0, 4);
+        p.formMorph = rng.uni();
+        p.formMix = mode == randForest ? rng.range (0.3f, 0.8f) : rng.range (0.f, 0.6f);
+        p.formTrack = rng.range (0.f, 0.6f);
+
+        p.filtType = rng.irange (0, 5);
+        p.cutoff = rng.range (200.f, mode == randDark ? 900.f : 5000.f);
+        p.res = rng.range (0.15f, 0.55f);
+        p.filtEnv = rng.range (0.2f, 0.9f);
+        p.distType = mode == randHiTech ? distCrush : (safe ? distSoft : rng.irange (0, 5));
+        p.distDrive = rng.range (0.05f, safe ? 0.3f : 0.8f);
+        p.distMix = rng.range (0.1f, 0.7f);
+
+        p.env[5].a = rng.range (0.0005f, 0.02f);
+        p.env[5].d = rng.range (0.05f, 0.4f);
+        p.env[5].r = rng.range (0.05f, 0.6f);
+        p.env[1].d = rng.range (0.04f, 0.3f);
+        p.macros[0] = rng.range (0.2f, 0.8f);
+        p.macros[1] = rng.range (0.1f, 0.9f);
+        p.macros[2] = rng.range (0.f, mode == randExp ? 0.9f : 0.55f);
+        p.macros[3] = rng.range (0.f, 0.7f);
+        p.macros[4] = rng.range (0.1f, 0.68f);
+        p.macros[5] = rng.range (0.15f, 0.85f);
+        p.macros[6] = rng.range (0.f, mode == randDark ? 0.8f : 0.35f);
+        p.lfo[0].rateHz = rng.range (0.5f, 12.f);
+        p.lfo[0].amt = rng.range (0.f, 0.6f);
+        p.lfo[0].shape = mode == randHiTech ? lfoSH : rng.irange (0, 4);
     }
-    applyFmPreset (p, mode == randClean ? 0 : rng.irange (0, 3));
 
-    p.formA = rng.irange (0, 4);
-    p.formB = rng.irange (0, 4);
-    p.formMorph = rng.uni();
-    p.formMix = mode == randForest ? rng.range (0.3f, 0.8f) : rng.range (0.f, 0.6f);
-    p.formTrack = rng.range (0.f, 0.6f);
-
-    p.filtType = rng.irange (0, 5);
-    p.cutoff = rng.range (200.f, mode == randDark ? 900.f : 5000.f);
-    p.res = rng.range (0.15f, 0.55f);
-    p.filtEnv = rng.range (0.2f, 0.9f);
-    p.distType = mode == randHiTech ? distCrush : (safe ? distSoft : rng.irange (0, 5));
-    p.distDrive = rng.range (0.05f, safe ? 0.3f : 0.8f);
-    p.distMix = rng.range (0.1f, 0.7f);
-
-    p.env[5].a = rng.range (0.0005f, 0.02f);
-    p.env[5].d = rng.range (0.05f, 0.4f);
-    p.env[5].r = rng.range (0.05f, 0.6f);
-    p.env[1].d = rng.range (0.04f, 0.3f);
-    p.macros[0] = rng.range (0.2f, 0.8f);
-    p.macros[1] = rng.range (0.1f, 0.9f);
-    p.macros[2] = rng.range (0.f, mode == randExp ? 0.9f : 0.55f);
-    p.macros[3] = rng.range (0.f, 0.7f);
-    p.macros[4] = rng.range (0.1f, 0.68f);
-    p.macros[5] = rng.range (0.15f, 0.85f);
-    p.macros[6] = rng.range (0.f, mode == randDark ? 0.8f : 0.35f);
-    p.lfo[0].rateHz = rng.range (0.5f, 12.f);
-    p.lfo[0].amt = rng.range (0.f, 0.6f);
-    p.lfo[0].shape = mode == randHiTech ? lfoSH : rng.irange (0, 4);
+    shapeFart (p, rng, fatPhrase (cat, mode));
+    if (kind == randAll || kind == randSafe)
+        matchLevel (p);
 }
 
 } // namespace f4rt
