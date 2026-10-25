@@ -670,7 +670,6 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     pageCols[page] = 6;
     addC (ParamID::formA, "Form A", "First formant vowel.");
     addC (ParamID::formB, "Form B", "Second formant vowel.");
-    addC (ParamID::vowel, "Vowel", "Quick vowel pick (also a parameter).");
     addK (ParamID::formMorph, "Morph", "Blend Form A into Form B.");
     addK (ParamID::formTrack, "Track", "How much formants follow the MIDI note.");
     addK (ParamID::formMix, "Mix", "Dry/wet of the formant filter.");

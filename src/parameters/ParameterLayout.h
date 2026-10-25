@@ -76,7 +76,6 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     addF (ParamID::formMorph, "Morph", unit, 0.f);
     addF (ParamID::formTrack, "Form Track", unit, 0.f);
     addF (ParamID::formMix, "Form Mix", unit, 0.f);
-    addI (ParamID::vowel, "Vowel", 0, vowels);
 
     addI (ParamID::filtType, "Filter", 0, filtTypes);
     addF (ParamID::cutoff, "Cutoff", hzR, 900.f);

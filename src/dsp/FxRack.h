@@ -24,7 +24,7 @@ struct FxRack
     juce::dsp::Phaser<float> phaser;
     juce::dsp::Compressor<float> comp;
     juce::dsp::IIR::Filter<float> eqLo, eqHi;
-    float flState = 0.f, flLfo = 0.f;
+    float flState = 0.f, flStateR = 0.f, flLfo = 0.f;
     float shPhase = 0.f;
     float grPos = 0.f;
     double sr = 44100.0;
@@ -58,7 +58,7 @@ struct FxRack
         comp.reset();
         eqLo.reset();
         eqHi.reset();
-        flState = flLfo = shPhase = grPos = 0.f;
+        flState = flStateR = flLfo = shPhase = grPos = 0.f;
     }
 
     void processOne (int kind, juce::AudioBuffer<float>& buffer, juce::AudioProcessorValueTreeState& apvts)
@@ -96,16 +96,17 @@ struct FxRack
                     const float t = rawP (apvts, ParamID::dlyT);
                     const float fb = rawP (apvts, ParamID::dlyFb);
                     delay.setDelay (t * (float) sr);
-                    auto* l = buffer.getWritePointer (0);
-                    float* r = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
-                    for (int i = 0; i < buffer.getNumSamples(); ++i)
+                    // One delay line per channel. A panned note stays on that side.
+                    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                     {
-                        const float in = l[i];
-                        const float d = delay.popSample (0);
-                        delay.pushSample (0, in + d * fb);
-                        l[i] = in + d * 0.5f;
-                        if (r != nullptr)
-                            r[i] = r[i] + d * 0.5f;
+                        auto* s = buffer.getWritePointer (ch);
+                        for (int i = 0; i < buffer.getNumSamples(); ++i)
+                        {
+                            const float in = s[i];
+                            const float d = delay.popSample (ch);
+                            delay.pushSample (ch, in + d * fb);
+                            s[i] = in + d * 0.5f;
+                        }
                     }
                 }
                 break;
@@ -144,19 +145,28 @@ struct FxRack
                 {
                     const float rate = rawP (apvts, ParamID::flRt);
                     const float fb = rawP (apvts, ParamID::flFb);
-                    auto* l = buffer.getWritePointer (0);
+                    const int nCh = buffer.getNumChannels();
+                    float* s0 = buffer.getWritePointer (0);
+                    float* s1 = nCh > 1 ? buffer.getWritePointer (1) : nullptr;
+                    float* st0 = &flState;
+                    float* st1 = &flStateR;
                     for (int i = 0; i < buffer.getNumSamples(); ++i)
                     {
                         flLfo += rate / (float) sr;
                         if (flLfo > 1.f)
                             flLfo -= 1.f;
                         const float d = 0.002f + 0.002f * std::sin (flLfo * 6.283185f);
-                        const float mix = l[i] + flState * fb;
-                        flState = mix;
-                        l[i] = l[i] + mix * 0.4f * (0.5f + d * 100.f);
+                        const float depth = 0.4f * (0.5f + d * 100.f);
+                        const float mix0 = s0[i] + *st0 * fb;
+                        *st0 = mix0;
+                        s0[i] = s0[i] + mix0 * depth;
+                        if (s1 != nullptr)
+                        {
+                            const float mix1 = s1[i] + *st1 * fb;
+                            *st1 = mix1;
+                            s1[i] = s1[i] + mix1 * depth;
+                        }
                     }
-                    if (buffer.getNumChannels() > 1)
-                        buffer.copyFrom (1, 0, buffer, 0, 0, buffer.getNumSamples());
                 }
                 break;
             case 7:
@@ -164,6 +174,7 @@ struct FxRack
                 {
                     const float hz = rawP (apvts, ParamID::shHz);
                     auto* l = buffer.getWritePointer (0);
+                    float* r = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
                     for (int i = 0; i < buffer.getNumSamples(); ++i)
                     {
                         shPhase += hz / (float) sr;
@@ -171,10 +182,11 @@ struct FxRack
                             shPhase -= 1.f;
                         if (shPhase < 0.f)
                             shPhase += 1.f;
-                        l[i] *= std::cos (shPhase * 6.283185f);
+                        const float m = std::cos (shPhase * 6.283185f);
+                        l[i] *= m;
+                        if (r != nullptr)
+                            r[i] *= m;
                     }
-                    if (buffer.getNumChannels() > 1)
-                        buffer.copyFrom (1, 0, buffer, 0, 0, buffer.getNumSamples());
                 }
                 break;
             default:
@@ -183,19 +195,22 @@ struct FxRack
                     const float sz = rawP (apvts, ParamID::grSz);
                     const float dn = rawP (apvts, ParamID::grDn);
                     const int gN = juce::jmax (32, (int) (sz * (float) sr));
-                    auto* l = buffer.getWritePointer (0);
+                    const int nCh = buffer.getNumChannels();
                     for (int i = 0; i < buffer.getNumSamples(); ++i)
                     {
-                        grain.pushSample (0, l[i]);
                         grPos += dn * 0.35f;
                         if (grPos > 1.f)
                             grPos -= 1.f;
                         const float env = std::sin (grPos * 3.141592f);
-                        const float g = grain.popSample (0, (float) gN * grPos);
-                        l[i] = l[i] * (1.f - dn * 0.5f) + g * env * dn;
+                        const float delaySamps = (float) gN * grPos;
+                        for (int ch = 0; ch < nCh; ++ch)
+                        {
+                            auto* s = buffer.getWritePointer (ch);
+                            grain.pushSample (ch, s[i]);
+                            const float g = grain.popSample (ch, delaySamps);
+                            s[i] = s[i] * (1.f - dn * 0.5f) + g * env * dn;
+                        }
                     }
-                    if (buffer.getNumChannels() > 1)
-                        buffer.copyFrom (1, 0, buffer, 0, 0, buffer.getNumSamples());
                 }
                 break;
         }

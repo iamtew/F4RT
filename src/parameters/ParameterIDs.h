@@ -24,7 +24,6 @@ constexpr const char* formB     = "formB";
 constexpr const char* formMorph = "formMorph";
 constexpr const char* formTrack = "formTrack";
 constexpr const char* formMix   = "formMix";
-constexpr const char* vowel     = "vowel";
 
 constexpr const char* filtType = "filtType";
 constexpr const char* cutoff   = "cutoff";

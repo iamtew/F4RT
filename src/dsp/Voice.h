@@ -312,7 +312,6 @@ struct Voice
             if (p.osc[i].vol <= 0.0001f)
                 continue;
             float hz = noteHz * std::pow (2.f, (p.osc[i].coarse + p.osc[i].fine / 100.f) / 12.f + pitchN);
-            hz *= std::pow (2.f, (p.keyTrack - 0.5f) * 0.1f);
             float fmSum = 0.f;
             for (int j = 0; j < kNumOsc; ++j)
                 fmSum += p.fm[j][i] * lastOsc[j];
