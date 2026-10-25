@@ -164,6 +164,8 @@ f4rt::Params F4RTAudioProcessor::currentParams() const
     for (int i = 0; i < 7; ++i)
         p.macros[i] = raw (ParamID::macro[i]);
     p.polyMode = choice (ParamID::polyMode);
+    p.glide = raw (ParamID::glide);
+    p.bendSt = f4rt::bendSemis (choice (ParamID::bendRange));
     p.voices = juce::roundToInt (raw (ParamID::voices));
     p.level = raw (ParamID::level);
     return p;
@@ -229,6 +231,8 @@ void F4RTAudioProcessor::writeParams (const f4rt::Params& p)
     for (int i = 0; i < 7; ++i)
         setF (ParamID::macro[i], p.macros[i]);
     setChoice (ParamID::polyMode, p.polyMode);
+    setF (ParamID::glide, p.glide);
+    setChoice (ParamID::bendRange, f4rt::bendChoice (p.bendSt));
     setF (ParamID::voices, (float) p.voices);
     setF (ParamID::level, p.level);
 }

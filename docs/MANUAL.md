@@ -18,7 +18,7 @@ Saved patches go to `%APPDATA%\Stupid Systems LLC\F4RT\Patches` as `.f4rtp`. Loa
 
 ## Pages
 
-- **Play** — macros, poly mode, voices, rand mode, randomize buttons, Play (test note), wavetable import, Apply FM recipe.
+- **Play** — macros, poly mode, glide, bend range, voices, rand mode, randomize buttons, Play (test note), wavetable import, Apply FM recipe.
 - **Osc** — one row per oscillator (type, vol, pan, coarse, fine, phase, width, FM into osc 1–4), FM env depth and recipe.
 - **Filter** — formants, filter, distortion.
 - **Motion** — 6 envelopes and 4 LFOs (shape, rate, amount, tempo sync).
@@ -32,6 +32,8 @@ Saved patches go to `%APPDATA%\Stupid Systems LLC\F4RT\Patches` as `.f4rtp`. Loa
 Size, Wetness, Anger, Alienness, Squelch, Rip Length, Toxicity. They bake into decay, resonance, FM, formant motion, and release. Size and Rip are read when the note starts. Comb is the filter type, not a Squelch threshold.
 
 A tap — amp sustain near zero, including the Play button — finishes that one note even when note-off arrives in the same block. Amp sustain up is a normal held note.
+
+Glide is the slide time for mono and legato. Zero snaps. Poly ignores it. Bend is the pitch-bend range: 2, 12, or 24 semitones. Osc pan is stereo through the formant, filter, and distortion.
 
 ## Random
 

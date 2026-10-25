@@ -640,6 +640,8 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
         addK (ParamID::macro[i], macN[i], macT[i]);
     addK (ParamID::voices, "Voices", "How many notes at once (1-64).");
     addC (ParamID::polyMode, "Poly", "Mono, legato or polyphonic.");
+    addK (ParamID::glide, "Glide", "Seconds to slide to the next note in mono and legato. Zero snaps. Poly stays instant.");
+    addC (ParamID::bendRange, "Bend", "Pitch-bend range: 2, 12 or 24 semitones. MPE is already per channel.");
     addC (ParamID::randMode, "Rand Mode", "Flavour for All / Safe randomize (Clean, Psytrance, Forest...).");
 
     // Osc: one row per oscillator (type, 6 knobs, FM into osc 1..4), then FM env + recipe.

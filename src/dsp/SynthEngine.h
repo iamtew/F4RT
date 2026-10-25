@@ -80,7 +80,7 @@ struct SynthEngine
             // legato: retune, keep envelopes
             slot[0].note = note;
             slot[0].channel = ch;
-            slot[0].voice.noteHz = midiNoteToHz ((float) note);
+            slot[0].voice.glideTo (midiNoteToHz ((float) note), p);
             slot[0].voice.vel = vel;
             lastNote = note;
             return;
@@ -113,7 +113,7 @@ struct SynthEngine
         else if (m.isNoteOff())
             noteOff (m.getNoteNumber(), ch);
         else if (m.isPitchWheel() && ch >= 0 && ch < 16)
-            bend[ch] = ((float) m.getPitchWheelValue() - 8192.f) / 8192.f * 2.f; // ±2 st, MPE hosts scale
+            bend[ch] = ((float) m.getPitchWheelValue() - 8192.f) / 8192.f; // ±1, scaled by Bend in render
         else if (m.isChannelPressure() && ch >= 0 && ch < 16)
             pressure[ch] = m.getChannelPressureValue() / 127.f;
         else if (m.isController() && m.getControllerNumber() == 1)
@@ -162,8 +162,7 @@ struct SynthEngine
                 if (! s.voice.active() && ! s.on)
                     continue;
                 const int ch = s.channel < 0 ? 0 : (s.channel > 15 ? 15 : s.channel);
-                s.voice.bend = bend[ch] * 12.f * 0.1667f * 12.f; // keep small
-                s.voice.bend = bend[ch] * 2.f;
+                s.voice.bend = bend[ch] * (float) p.bendSt;
                 s.voice.aftertouch = pressure[ch];
                 float vl = 0.f, vr = 0.f;
                 s.voice.process (p, mx, bpm, modwheel, vl, vr);

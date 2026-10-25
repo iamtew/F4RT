@@ -58,9 +58,30 @@ struct Params
     float lfoDraw[kNumLfo][kLfoDrawN] {};
     float macros[kNumMacro] { 0.45f, 0.55f, 0.2f, 0.1f, 0.5f, 0.4f, 0.05f };
     int polyMode = 2;
+    float glide = 0.f; // seconds. 0 snaps. Mono and legato only.
+    int bendSt = 2;    // pitch-bend range in semitones: 2, 12 or 24
     int voices = 8;
     float level = 0.7f;
 };
+
+// Choice index 0/1/2 is the Bend combo. Anything else stays at 2 st.
+inline int bendSemis (int choice)
+{
+    if (choice == 1)
+        return 12;
+    if (choice == 2)
+        return 24;
+    return 2;
+}
+
+inline int bendChoice (int semis)
+{
+    if (semis >= 24)
+        return 2;
+    if (semis >= 12)
+        return 1;
+    return 0;
+}
 
 inline Params defaultParams()
 {
@@ -113,12 +134,14 @@ struct Voice
     Osc osc[kNumOsc];
     Adsr env[kNumEnv];
     Lfo lfo[kNumLfo];
-    Formant formant;
-    Filter filter;
-    Distortion dist;
+    Formant formant, formantR;
+    Filter filter, filterR;
+    Distortion dist, distR;
     float lastOsc[kNumOsc] {};
     float sr = 44100.f;
     float noteHz = 261.63f;
+    float glideHz = 261.63f;
+    float glideStep = 0.f; // log-Hz per sample. 0 means already on the target.
     float vel = 1.f;
     float aftertouch = 0.f;
     float bend = 0.f; // semitones
@@ -132,6 +155,7 @@ struct Voice
     {
         sr = sampleRate > 1.0 ? (float) sampleRate : 44100.f;
         filter.prepare (sampleRate);
+        filterR.prepare (sampleRate);
         makeBuiltinWt (builtIn);
         reset();
     }
@@ -145,8 +169,11 @@ struct Voice
         for (int i = 0; i < kNumLfo; ++i)
             lfo[i].reset ((uint32_t) (i + 1) * 17u);
         formant.reset();
+        formantR.reset();
         filter.reset();
+        filterR.reset();
         dist.reset();
+        distR.reset();
         for (float& s : lastOsc)
             s = 0.f;
         gate = false;
@@ -172,9 +199,28 @@ struct Voice
         }
     }
 
+    // Slide only when this voice is already sounding. A fresh note snaps.
+    void aim (float hz, const Params& raw, bool slide)
+    {
+        if (! slide || raw.polyMode == 2 || raw.glide <= 0.0005f || noteHz <= 1.f)
+        {
+            noteHz = glideHz = hz;
+            glideStep = 0.f;
+            return;
+        }
+        glideHz = hz;
+        const float samples = raw.glide * sr;
+        const float a = std::log (noteHz);
+        const float b = std::log (hz > 1.f ? hz : 1.f);
+        glideStep = (b - a) / (samples > 1.f ? samples : 1.f);
+    }
+
+    // Legato retune. Envelopes stay. Poly and zero glide snap.
+    void glideTo (float hz, const Params& raw) { aim (hz, raw, true); }
+
     void start (float hz, float velocity, const Params& raw)
     {
-        noteHz = hz;
+        aim (hz, raw, env[5].active());
         vel = velocity;
         age = 0.f;
         gate = true;
@@ -187,8 +233,32 @@ struct Voice
         for (int i = 0; i < kNumLfo; ++i)
             lfo[i].reset ((uint32_t) (i + 3) * 91u);
         formant.reset();
+        formantR.reset();
         filter.reset();
+        filterR.reset();
         dist.reset();
+        distR.reset();
+    }
+
+    void advanceGlide (const Params& p)
+    {
+        if (p.polyMode == 2 || p.glide <= 0.0005f)
+        {
+            noteHz = glideHz;
+            glideStep = 0.f;
+            return;
+        }
+        if (glideStep == 0.f)
+            return;
+        const float a = std::log (noteHz > 1.f ? noteHz : 1.f);
+        const float b = std::log (glideHz > 1.f ? glideHz : 1.f);
+        if ((b - a) * glideStep <= 0.f || std::abs (b - a) <= std::abs (glideStep))
+        {
+            noteHz = glideHz;
+            glideStep = 0.f;
+            return;
+        }
+        noteHz = std::exp (a + glideStep);
     }
 
     void release()
@@ -206,6 +276,7 @@ struct Voice
     {
         Params p = in;
         applyMacros (p);
+        advanceGlide (p);
 
         float src[kNumSources] {};
         for (int i = 0; i < kNumEnv; ++i)
@@ -261,12 +332,9 @@ struct Voice
             right += rS * g * pl;
         }
 
-        float mono = 0.5f * (left + right);
-        formant.set (sr, p.formA, p.formB, p.formMorph + morphN, p.formTrack, noteHz);
-        const float fv = formant.process (mono);
+        // Osc pan is already in left/right. Each side keeps its own state so that pan
+        // is still there after formant, filter and distortion.
         const float mix = p.formMix < 0.f ? 0.f : (p.formMix > 1.f ? 1.f : p.formMix);
-        mono = mono + (fv - mono) * mix;
-
         float cut = p.cutoff * std::pow (2.f, cutN * 3.f);
         cut *= std::pow (noteHz / 261.63f, p.keyTrack);
         if (cut < 30.f)
@@ -278,18 +346,26 @@ struct Voice
             reso = 0.f;
         if (reso > 0.98f)
             reso = 0.98f;
-        mono = filter.process (p.filtType, mono, cut, reso, p.filtDrive);
-
         float drv = p.distDrive + distN * 0.5f;
         if (drv < 0.f)
             drv = 0.f;
         if (drv > 1.f)
             drv = 1.f;
-        mono = dist.process (p.distType, mono, drv, p.distTone, p.distMix);
+        formant.set (sr, p.formA, p.formB, p.formMorph + morphN, p.formTrack, noteHz);
+        formantR.set (sr, p.formA, p.formB, p.formMorph + morphN, p.formTrack, noteHz);
+        auto shape = [&] (float x, Formant& form, Filter& filt, Distortion& d)
+        {
+            const float fv = form.process (x);
+            x = x + (fv - x) * mix;
+            x = filt.process (p.filtType, x, cut, reso, p.filtDrive);
+            return d.process (p.distType, x, drv, p.distTone, p.distMix);
+        };
+        left = shape (left, formant, filter, dist);
+        right = shape (right, formantR, filterR, distR);
 
         const float amp = src[kSrcEnv0 + 5] * (1.f + ampN) * vel * p.level;
-        l = mono * amp;
-        r = mono * amp;
+        l = left * amp;
+        r = right * amp;
         age += 1.f / sr;
         if (oneShot && env[5].stage == Adsr::Sustain)
             env[5].reset(); // one toot is done; free the voice

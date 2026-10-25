@@ -53,6 +53,8 @@ constexpr const char* macro[7] = {
 };
 
 constexpr const char* polyMode = "polyMode";
+constexpr const char* glide    = "glide";
+constexpr const char* bendRange = "bendRange";
 constexpr const char* voices   = "voices";
 constexpr const char* level    = "level";
 constexpr const char* randMode = "randMode";

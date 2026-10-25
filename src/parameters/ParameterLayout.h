@@ -44,6 +44,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     const StringArray distTypes { "Soft", "Hard", "Tube", "Fold", "Crush", "Digital" };
     const StringArray lfoShapes { "Sine", "Tri", "Ramp", "Random", "S&H", "User" };
     const StringArray polyModes { "Mono", "Legato", "Poly" };
+    const StringArray bendRanges { "2 st", "12 st", "24 st" };
     const StringArray randModes { "Clean", "Psytrance", "Forest", "Darkpsy", "Hi-Tech", "Experimental" };
     const StringArray fmRecipes { "Simple FM", "Metallic", "Alien", "Growl" };
     const StringArray srcNames {
@@ -111,6 +112,8 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
         addF (ParamID::macro[i], macN[i], unit, macD[i]);
 
     addI (ParamID::polyMode, "Poly", 2, polyModes);
+    addF (ParamID::glide, "Glide", NormalisableRange<float> (0.f, 0.4f, 0.001f, 0.5f), 0.f);
+    addI (ParamID::bendRange, "Bend", 0, bendRanges);
     addF (ParamID::voices, "Voices", NormalisableRange<float> (1.f, 64.f, 1.f), 8.f);
     addF (ParamID::level, "Level", NormalisableRange<float> (0.f, 4.f), 0.7f);
     addI (ParamID::randMode, "Rand Mode", 1, randModes);
