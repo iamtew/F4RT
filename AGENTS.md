@@ -24,7 +24,7 @@ F4RT.jucer
 
 ## Version
 - Jucer `version=` is what the binary and About dialog show.
-- Git tags must match that string (`0.0.1`).
+- Git tags must match that string (`0.0.4`).
 - `just build-dist` names the zips and MSI from the jucer version.
 
 ## Colors
