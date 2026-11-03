@@ -661,6 +661,7 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
 {
     setLookAndFeel (&panelLnF);
     setOpaque (true);
+    content.setOpaque (true);
     panelLnF.setColour (juce::PopupMenu::backgroundColourId, kInk);
     panelLnF.setColour (juce::PopupMenu::textColourId, kLight);
     panelLnF.setColour (juce::PopupMenu::highlightedBackgroundColourId, kGreen);
@@ -730,8 +731,6 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     distTone = addK (ParamID::distTone, "Tone", "Distortion brightness.");
     distMix = addK (ParamID::distMix, "Mix", "Dry/wet of the distortion.");
     static const char* macN[] = { "Size", "Wetness", "Anger", "Alienness", "Squelch", "Rip Length", "Toxicity" };
-    static const char* macH[] = { "longer / darker", "more squelch", "FM + grit", "wobble vowel",
-                                  "extra resonance", "tail", "fold when high" };
     static const char* macT[] = {
         "Amp decay and cutoff, baked when the note starts. Bigger = longer, darker.",
         "Resonance and formant mix. Wetter = squelchier.",
@@ -742,7 +741,7 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
         "Above about 0.55 switches distortion to fold. Also a matrix source."
     };
     for (int i = 0; i < 7; ++i)
-        macros[i] = addK (ParamID::macro[i], macN[i], macT[i], macH[i]);
+        macros[i] = addK (ParamID::macro[i], macN[i], macT[i]);
     voices = addK (ParamID::voices, "Voices", "How many notes at once (1-64).");
     polyMode = addC (ParamID::polyMode, "Mode", "Mono, legato or polyphonic.");
     glide = addK (ParamID::glide, "Glide", "Seconds to slide to the next note in mono and legato. Zero snaps. Poly stays instant.");
@@ -961,6 +960,8 @@ void F4RTAudioProcessorEditor::paintContent (juce::Graphics& g)
         g.fillRoundedRectangle (b, 4.f);
         g.setColour (kGrey);
         g.drawRoundedRectangle (b.reduced (0.5f), 4.f, 1.f);
+        juce::Graphics::ScopedSaveState clip (g);
+        g.reduceClipRegion (s.bounds);
         auto t = s.bounds.reduced (8, 1).removeFromTop (kSectionHead);
         g.setColour (kYellow);
         g.setFont (boldFont (11.f));
@@ -1025,21 +1026,21 @@ void F4RTAudioProcessorEditor::placeRow (juce::Rectangle<int> r, juce::Component
 void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
 {
     const int h = r.getHeight();
-    auto top = r.removeFromTop (h * 44 / 100);
+    auto top = r.removeFromTop (h * 50 / 100);
     r.removeFromTop (5);
     auto chain = r.removeFromTop (h * 24 / 100);
     r.removeFromTop (5);
-    auto scope = r.removeFromBottom (juce::jmax (64, h * 14 / 100));
+    auto scope = r.removeFromBottom (56);
     r.removeFromBottom (4);
 
     auto oscS = top.removeFromLeft (top.getWidth() * 62 / 100);
     auto fmS = top;
-    sections.push_back ({ oscS, "Oscillators", "who makes the toot" });
-    sections.push_back ({ fmS, "FM", "who bends whose pitch" });
+    sections.push_back ({ oscS, "Oscillators", {} });
+    sections.push_back ({ fmS, "FM", {} });
 
-    auto oscBody = oscS.reduced (4).withTrimmedTop (kSectionHead);
-    wtBtn.setBounds (oscBody.removeFromTop (24).removeFromRight (100).reduced (2));
-    oscBody.removeFromTop (2);
+    auto oscBody = oscS.reduced (4);
+    auto oscHead = oscBody.removeFromTop (kSectionHead);
+    wtBtn.setBounds (oscHead.removeFromRight (96).reduced (1));
     const int orh = juce::jmax (1, oscBody.getHeight() / 4);
     for (int i = 0; i < 4; ++i)
     {
@@ -1049,12 +1050,12 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
         placeRow (row, cells, 7);
     }
 
-    auto fmBody = fmS.reduced (4).withTrimmedTop (kSectionHead);
-    auto tools = fmBody.removeFromTop (52);
-    recipeBtn.setBounds (tools.removeFromRight (88).reduced (2, 10));
-    juce::Component* toolC[] = { fmRecipe, fmEnv };
-    placeRow (tools, toolC, 2);
-    fmBody.removeFromTop (2);
+    auto fmBody = fmS.reduced (4);
+    auto fmHead = fmBody.removeFromTop (44);
+    fmHead.removeFromLeft (28);  // painted "FM" title
+    recipeBtn.setBounds (fmHead.removeFromRight (84).reduced (1, 8));
+    fmEnv->setBounds (fmHead.removeFromRight (70));
+    fmRecipe->setBounds (fmHead);
     fmBody.removeFromTop (14);
     fmBody.removeFromLeft (22);
     fmGrid = fmBody;
@@ -1064,16 +1065,16 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
         for (int j = 0; j < 4; ++j)
             fm[i][j]->setBounds (fmGrid.getX() + j * fmcw, fmGrid.getY() + i * fmch, fmcw, fmch);
 
-    const int gap = 14;
+    const int gap = 22;
     const int colW = juce::jmax (1, (chain.getWidth() - 2 * gap) / 3);
     auto vowel = chain.removeFromLeft (colW);
     chainGaps[0] = chain.removeFromLeft (gap);
     auto filt = chain.removeFromLeft (colW);
     chainGaps[1] = chain.removeFromLeft (gap);
     auto grit = chain;
-    sections.push_back ({ vowel, "Vowel", "mouth" });
-    sections.push_back ({ filt, "Filter", "squelch" });
-    sections.push_back ({ grit, "Grit", "distortion" });
+    sections.push_back ({ vowel, "Vowel", {} });
+    sections.push_back ({ filt, "Filter", {} });
+    sections.push_back ({ grit, "Grit", {} });
     juce::Component* v[] = { formA, formB, formMorph, formTrack, formMix };
     juce::Component* f[] = { filtType, cutoff, res, filtDrive, keyTrack, filtEnv };
     juce::Component* d[] = { distType, distDrive, distTone, distMix };
@@ -1083,8 +1084,8 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
 
     auto charS = r.removeFromLeft (r.getWidth() * 62 / 100);
     auto voiceS = r;
-    sections.push_back ({ charS, "Character", "twist the sound from here" });
-    sections.push_back ({ voiceS, "Voice", "how notes live" });
+    sections.push_back ({ charS, "Character", {} });
+    sections.push_back ({ voiceS, "Voice", {} });
     juce::Component* mac[] = { macros[0], macros[1], macros[2], macros[3], macros[4], macros[5], macros[6] };
     placeRow (charS.reduced (4).withTrimmedTop (kSectionHead), mac, 7);
 
@@ -1096,9 +1097,8 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
     juce::Component* vc[] = { voices, polyMode, glide, bendRange, randMode };
     placeRow (vb, vc, 5);
 
-    sections.push_back ({ scope, "Scope", {} });
-    vizMode.setBounds (scope.removeFromTop (22).removeFromLeft (160).reduced (2, 1));
-    viz.setBounds (scope.reduced (4, 2));
+    vizMode.setBounds (scope.removeFromLeft (140).removeFromTop (22).reduced (2, 1));
+    viz.setBounds (scope.reduced (2));
 }
 
 void F4RTAudioProcessorEditor::layoutMotion (juce::Rectangle<int> r)
@@ -1264,6 +1264,7 @@ void F4RTAudioProcessorEditor::applyPageVisibility()
     browser.setVisible (patches);
 
     layoutContent();
+    content.repaint();
     pageTabs.repaint();
     if (aboutBox.isVisible())
         aboutBox.toFront (false);
