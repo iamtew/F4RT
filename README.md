@@ -8,7 +8,7 @@ VST3 and standalone. Audio Unit on macOS. Stupid Systems LLC. [MIT](LICENSE). Si
 
 ## Release
 
-Windows, Linux, and macOS files come from GitHub Actions (`.github/workflows/dist.yml`). Run it from the Actions tab, or push a numeric tag such as `0.0.2`. The workflow does not publish a release. `<version>` is the `version` in `F4RT.jucer`.
+Windows, Linux, and macOS files come from GitHub Actions (`.github/workflows/dist.yml`). Run it from the Actions tab for artifacts only, or push a numeric tag such as `0.0.2` (no `v` prefix) to build and publish a GitHub Release with the files attached. `<version>` is the `version` in `F4RT.jucer`.
 
 The `dist` artifact holds:
 
@@ -20,12 +20,6 @@ The `dist` artifact holds:
 - `F4RT-<version>-mac-universal-vst3.zip`
 - `F4RT-<version>-mac-universal-au.zip`
 - `F4RT-<version>-mac-universal-standalone.zip`
-
-Download that artifact into `dist/` and upload the files on a GitHub release:
-
-```
-gh run download <run-id> -n dist -D dist
-```
 
 The MSI installs the VST3, the standalone app, or both. Defaults are `Common Files\VST3` and `Program Files\Stupid Systems LLC\F4RT`; each folder can be changed. The standalone install adds a Start menu shortcut.
 
