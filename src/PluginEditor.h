@@ -7,8 +7,8 @@
 #include <functional>
 #include <vector>
 
-// Title row (About, page / patch / bank bars, volume strip) over eight pages.
-// Same top-row layout as K1X, 5HKR and TEW03.
+// Title row (About, patch / bank bars, volume strip) plus five pages:
+// Sound (the chain), Motion, Matrix, FX, Patches.
 class F4RTAudioProcessorEditor : public juce::AudioProcessorEditor,
                                  private juce::Timer
 {
@@ -19,7 +19,8 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    static constexpr int kPageCount = 8;
+    static constexpr int kPageCount = 5;
+    enum Page { Sound = 0, Motion, Matrix, Fx, Patches };
 
 private:
     // Everything lives in `content`, laid out at a fixed base size and scaled as
@@ -34,14 +35,17 @@ private:
     };
     void paintContent (juce::Graphics&);
     void layoutContent();
+    void layoutSound (juce::Rectangle<int>);
+    void layoutMotion (juce::Rectangle<int>);
+    void layoutMatrix (juce::Rectangle<int>);
+    void layoutFx (juce::Rectangle<int>);
+    void layoutPatches (juce::Rectangle<int>);
     void contentMouseUp (const juce::MouseEvent&);
     void timerCallback() override;
     juce::Rectangle<int> titleHitBounds() const;
     void openAbout();
 
     void setEditorPage (int page);
-    void cyclePage (int delta);
-    void openPageMenu();
     void applyPageVisibility();
 
     void refreshBars();
@@ -55,6 +59,13 @@ private:
 
     void refreshBrowser();
     void applyFmRecipe();
+
+    static void placeRow (juce::Rectangle<int> r, juce::Component* const* items, int n);
+    struct Section
+    {
+        juce::Rectangle<int> bounds;
+        juce::String title, sub;
+    };
 
     F4RTAudioProcessor& proc;
 
@@ -102,6 +113,15 @@ private:
         std::function<void()> onOpen;
     };
 
+    struct PageTabs : public juce::Component,
+                      public juce::SettableTooltipClient
+    {
+        explicit PageTabs (F4RTAudioProcessorEditor& e) : ed (e) {}
+        void paint (juce::Graphics& g) override;
+        void mouseUp (const juce::MouseEvent& e) override;
+        F4RTAudioProcessorEditor& ed;
+    };
+
     // Level fader (left) + output spectrum (right). Both flash yellow on clip.
     struct VolumeStrip : public juce::Component,
                          public juce::SettableTooltipClient
@@ -132,9 +152,10 @@ private:
                   public juce::SettableTooltipClient
     {
         Knob (juce::AudioProcessorValueTreeState& st, const juce::String& id,
-              const juce::String& name, const juce::String& tip);
+              const juce::String& name, const juce::String& tip,
+              const juce::String& hint = {});
         void resized() override;
-        juce::Label label;
+        juce::Label label, hint;
         juce::Slider slider;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
     };
@@ -183,16 +204,45 @@ private:
     Content content { *this };  // declared before its children so it is destroyed after them
     int baseW = 0, baseH = 0;
 
-    // Owners. Pages only hold pointers into these.
     juce::OwnedArray<Knob> knobs;
     juce::OwnedArray<Combo> combos;
     juce::OwnedArray<Toggle> toggles;
-    // Per page: grid cells (nullptr = empty cell) and the button row above them.
     juce::Array<juce::Component*> pageItems[kPageCount];
-    juce::Array<juce::Component*> pageButtons[kPageCount];
-    int pageCols[kPageCount] {};
 
-    PatchBar pageBar, patchBar, bankBar;
+    // Sound
+    Combo* oType[4] {};
+    Knob* oVol[4] {}, *oPan[4] {}, *oCoarse[4] {}, *oFine[4] {}, *oPhase[4] {}, *oWidth[4] {};
+    Knob* fm[4][4] {};
+    Knob* fmEnv {};
+    Combo* fmRecipe {};
+    Combo* formA {}, *formB {}, *filtType {}, *distType {};
+    Knob* formMorph {}, *formTrack {}, *formMix {};
+    Knob* cutoff {}, *res {}, *filtDrive {}, *keyTrack {}, *filtEnv {};
+    Knob* distDrive {}, *distTone {}, *distMix {};
+    Knob* macros[7] {};
+    Knob* voices {}, *glide {};
+    Combo* polyMode {}, *bendRange {}, *randMode {};
+
+    // Motion
+    Knob* envAtk[6] {}, *envDec[6] {}, *envSus[6] {}, *envRel[6] {};
+    Combo* lShape[4] {};
+    Knob* lRate[4] {}, *lAmt[4] {};
+    Toggle* lSync[4] {};
+
+    // Matrix (first 16 of 32)
+    Toggle* mxOn[16] {};
+    Combo* mxSrc[16] {}, *mxDst[16] {};
+    Knob* mxAmt[16] {};
+
+    // FX
+    Toggle* eqOn {}, *cmpOn {}, *dlyOn {}, *revOn {}, *choOn {}, *phOn {}, *flOn {}, *shOn {}, *grOn {};
+    Knob* eqLo {}, *eqMid {}, *eqHi {}, *cmpTh {}, *cmpRt {}, *dlyT {}, *dlyFb {};
+    Knob* revSz {}, *revDm {}, *choRt {}, *choDp {}, *phRt {}, *phDp {}, *flRt {}, *flFb {};
+    Knob* shHz {}, *grSz {}, *grDn {};
+    Combo* fxSlot[9] {};
+
+    PatchBar patchBar, bankBar;
+    PageTabs pageTabs { *this };
     VolumeStrip volumeStrip { *this };
 
     juce::ToggleButton playBtn { "Play" };
@@ -211,10 +261,14 @@ private:
     juce::ComboBox vizMode;
     Viz viz { *this };
     AboutBox aboutBox;
-    int editorPage = 0;
+    int editorPage = Sound;
     std::unique_ptr<juce::FileChooser> chooser;
     juce::Image logo;
     juce::TooltipWindow tip { this, 400 };  // hover help; 400 ms so it shows before you look away
+    std::vector<Section> sections;
+    juce::Rectangle<int> fmGrid;
+    juce::Rectangle<int> chainGaps[2];
+    juce::Rectangle<int> oscLabels[4];
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (F4RTAudioProcessorEditor)
 };

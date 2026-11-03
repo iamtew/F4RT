@@ -7,14 +7,16 @@
 
 namespace
 {
-constexpr int kEditorW = 860;
-constexpr int kEditorH = 540;
-constexpr const char* kPageNames[] = { "Play", "Osc", "Filter", "Motion", "Matrix", "FX", "Browser", "Viz" };
+constexpr int kEditorW = 1120;
+constexpr int kEditorH = 720;
+constexpr const char* kPageNames[] = { "Sound", "Motion", "Matrix", "FX", "Patches" };
 constexpr int kPad = 8;
 constexpr int kTitleH = 40;
 constexpr int kTitleHitW = 150;
+constexpr int kTabH = 28;
 constexpr int kLabelH = 12;
-constexpr int kBtnRowH = 28;
+constexpr int kHintH = 10;
+constexpr int kSectionHead = 20;
 constexpr int kCatSize = 20;  // factory presets per category (FactoryBank: index / 20)
 constexpr int kCatCount = f4rt::kFactoryCount / kCatSize;
 
@@ -47,12 +49,19 @@ juce::String factoryLabel (int i)
 
 F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
                                       const juce::String& id, const juce::String& name,
-                                      const juce::String& tip)
+                                      const juce::String& tip, const juce::String& hintText)
 {
     label.setText (name, juce::dontSendNotification);
     label.setJustificationType (juce::Justification::centred);
     label.setColour (juce::Label::textColourId, kLight);
     addAndMakeVisible (label);
+    label.setVisible (name.isNotEmpty());
+    hint.setText (hintText, juce::dontSendNotification);
+    hint.setJustificationType (juce::Justification::centred);
+    hint.setColour (juce::Label::textColourId, kGrey);
+    hint.setFont (boldFont (9.f));
+    addAndMakeVisible (hint);
+    hint.setVisible (hintText.isNotEmpty());
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 56, 12);
     slider.setColour (juce::Slider::textBoxTextColourId, kLight);
@@ -69,7 +78,10 @@ F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
 void F4RTAudioProcessorEditor::Knob::resized()
 {
     auto r = getLocalBounds();
-    label.setBounds (r.removeFromTop (kLabelH));
+    if (label.getText().isNotEmpty())
+        label.setBounds (r.removeFromTop (kLabelH));
+    if (hint.isVisible())
+        hint.setBounds (r.removeFromTop (kHintH));
     slider.setBounds (r);
 }
 
@@ -81,6 +93,7 @@ F4RTAudioProcessorEditor::Combo::Combo (juce::AudioProcessorValueTreeState& st,
     label.setJustificationType (juce::Justification::centred);
     label.setColour (juce::Label::textColourId, kLight);
     addAndMakeVisible (label);
+    label.setVisible (name.isNotEmpty());
     // ComboBoxAttachment does not add items; without this every box is empty.
     if (auto* c = dynamic_cast<juce::AudioParameterChoice*> (st.getParameter (id)))
         box.addItemList (c->choices, 1);
@@ -93,8 +106,9 @@ F4RTAudioProcessorEditor::Combo::Combo (juce::AudioProcessorValueTreeState& st,
 void F4RTAudioProcessorEditor::Combo::resized()
 {
     auto r = getLocalBounds();
-    label.setBounds (r.removeFromTop (kLabelH));
-    box.setBounds (r.withSizeKeepingCentre (juce::jmin (r.getWidth() - 4, 120), 24));
+    if (label.getText().isNotEmpty())
+        label.setBounds (r.removeFromTop (kLabelH));
+    box.setBounds (r.withSizeKeepingCentre (juce::jmin (r.getWidth() - 4, 160), 24));
 }
 
 F4RTAudioProcessorEditor::Toggle::Toggle (juce::AudioProcessorValueTreeState& st,
@@ -110,7 +124,7 @@ F4RTAudioProcessorEditor::Toggle::Toggle (juce::AudioProcessorValueTreeState& st
 
 void F4RTAudioProcessorEditor::Toggle::resized()
 {
-    btn.setBounds (getLocalBounds().withSizeKeepingCentre (juce::jmin (getWidth() - 4, 72), 24));
+    btn.setBounds (getLocalBounds().withSizeKeepingCentre (juce::jmin (getWidth() - 4, 96), 24));
 }
 
 // ---------------------------------------------------------------- Look
@@ -387,6 +401,33 @@ void F4RTAudioProcessorEditor::PatchBar::mouseUp (const juce::MouseEvent& e)
         onOpen();
 }
 
+void F4RTAudioProcessorEditor::PageTabs::paint (juce::Graphics& g)
+{
+    const int n = F4RTAudioProcessorEditor::kPageCount;
+    const float w = (float) getWidth() / (float) n;
+    for (int i = 0; i < n; ++i)
+    {
+        auto t = juce::Rectangle<float> (i * w, 0.f, w, (float) getHeight()).reduced (2.f, 3.f);
+        const bool on = i == ed.editorPage;
+        g.setColour (on ? kInk.brighter (0.16f) : kInk);
+        g.fillRoundedRectangle (t, 4.f);
+        g.setColour (on ? kYellow : kGrey);
+        g.drawRoundedRectangle (t.reduced (0.5f), 4.f, 1.f);
+        g.setFont (boldFont (12.f));
+        g.setColour (on ? kYellow : kLight);
+        g.drawText (kPageNames[i], t.toNearestInt(), juce::Justification::centred, false);
+    }
+}
+
+void F4RTAudioProcessorEditor::PageTabs::mouseUp (const juce::MouseEvent& e)
+{
+    if (! e.mouseWasClicked() || getWidth() <= 0)
+        return;
+    const int i = juce::jlimit (0, F4RTAudioProcessorEditor::kPageCount - 1,
+                                e.x * F4RTAudioProcessorEditor::kPageCount / getWidth());
+    ed.setEditorPage (i);
+}
+
 F4RTAudioProcessorEditor::VolumeStrip::VolumeStrip (F4RTAudioProcessorEditor& ed)
     : editor (ed)
 {
@@ -581,7 +622,7 @@ void F4RTAudioProcessorEditor::Viz::paint (juce::Graphics& g)
             y += 16;
         }
         if (y == 8)
-            g.drawText ("No active routes. Switch a row On on the Matrix page.", r.toNearestInt(),
+            g.drawText ("No active routes. Switch a row On on the Matrix tab.", r.toNearestInt(),
                         juce::Justification::centred, false);
     }
 }
@@ -631,36 +672,66 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     panelLnF.setColour (juce::TooltipWindow::outlineColourId, kGreen);
     logo = juce::ImageCache::getFromMemory (BinaryData::logo_png, BinaryData::logo_pngSize);
 
-    // Each add* creates the control and appends it to a page's grid, in reading order.
-    int page = 0;
-    auto addK = [this, &page] (const char* id, const juce::String& name, const juce::String& tip)
+    int page = Sound;
+    auto addK = [this, &page] (const char* id, const juce::String& name, const juce::String& tip,
+                               const juce::String& hint = {}) -> Knob*
     {
-        auto* k = knobs.add (new Knob (proc.apvts, id, name, tip));
+        auto* k = knobs.add (new Knob (proc.apvts, id, name, tip, hint));
         content.addChildComponent (k);
         pageItems[page].add (k);
+        return k;
     };
-    auto addC = [this, &page] (const char* id, const juce::String& name, const juce::String& tip)
+    auto addC = [this, &page] (const char* id, const juce::String& name, const juce::String& tip) -> Combo*
     {
         auto* c = combos.add (new Combo (proc.apvts, id, name, tip));
         content.addChildComponent (c);
         pageItems[page].add (c);
+        return c;
     };
-    auto addT = [this, &page] (const char* id, const juce::String& name, const juce::String& tip)
+    auto addT = [this, &page] (const char* id, const juce::String& name, const juce::String& tip) -> Toggle*
     {
         auto* t = toggles.add (new Toggle (proc.apvts, id, name, tip));
         content.addChildComponent (t);
         pageItems[page].add (t);
-    };
-    auto gap = [this, &page] (int n)
-    {
-        for (int i = 0; i < n; ++i)
-            pageItems[page].add (nullptr);
+        return t;
     };
 
-    // Play: 7 macros, then voice setup. 5 columns.
-    page = 0;
-    pageCols[page] = 5;
+    page = Sound;
+    for (int i = 0; i < 4; ++i)
+    {
+        const auto n = juce::String (i + 1);
+        oType[i] = addC (ParamID::oType[i], "Type",
+                         "Osc " + n + " waveform: sine, tri, saw, square, wavetable, noise or user WT.");
+        oVol[i] = addK (ParamID::oVol[i], "Volume", "Osc " + n + " volume.");
+        oPan[i] = addK (ParamID::oPan[i], "Pan", "Osc " + n + " pan (left to right).");
+        oCoarse[i] = addK (ParamID::oCoarse[i], "Coarse", "Osc " + n + " pitch in semitones.");
+        oFine[i] = addK (ParamID::oFine[i], "Fine", "Osc " + n + " pitch in cents.");
+        oPhase[i] = addK (ParamID::oPhase[i], "Phase", "Osc " + n + " start phase.");
+        oWidth[i] = addK (ParamID::oWidth[i], "Width", "Osc " + n + " stereo width.");
+        for (int j = 0; j < 4; ++j)
+            fm[i][j] = addK (ParamID::fm[i][j], {},
+                             "How much osc " + n + " modulates osc " + juce::String (j + 1) + ".");
+    }
+    fmEnv = addK (ParamID::fmEnvDepth, "FM Env", "How much the FM envelope scales the FM amounts.");
+    fmRecipe = addC (ParamID::fmRecipe, "Recipe", "Preset FM graph. Click Apply FM to write it.");
+    formA = addC (ParamID::formA, "From", "Start vowel.");
+    formB = addC (ParamID::formB, "To", "End vowel.");
+    formMorph = addK (ParamID::formMorph, "Morph", "Blend From into To.");
+    formTrack = addK (ParamID::formTrack, "Follow note", "How much the vowel frequencies follow the MIDI note.");
+    formMix = addK (ParamID::formMix, "Mix", "Dry/wet of the vowel filter.");
+    filtType = addC (ParamID::filtType, "Type", "LP, HP, BP, notch, comb. SVF is the same as LP.");
+    cutoff = addK (ParamID::cutoff, "Cutoff", "Filter cutoff frequency.");
+    res = addK (ParamID::res, "Resonance", "Filter resonance / emphasis.");
+    filtDrive = addK (ParamID::filtDrive, "Drive in", "Saturation into the filter.");
+    keyTrack = addK (ParamID::keyTrack, "Follow note", "How much cutoff follows the MIDI note.");
+    filtEnv = addK (ParamID::filtEnv, "Env amount", "How much the filter envelope moves cutoff.");
+    distType = addC (ParamID::distType, "Type", "Soft, hard, tube, fold, crush or digital.");
+    distDrive = addK (ParamID::distDrive, "Drive", "Distortion amount.");
+    distTone = addK (ParamID::distTone, "Tone", "Distortion brightness.");
+    distMix = addK (ParamID::distMix, "Mix", "Dry/wet of the distortion.");
     static const char* macN[] = { "Size", "Wetness", "Anger", "Alienness", "Squelch", "Rip Length", "Toxicity" };
+    static const char* macH[] = { "longer / darker", "more squelch", "FM + grit", "wobble vowel",
+                                  "extra resonance", "tail", "fold when high" };
     static const char* macT[] = {
         "Amp decay and cutoff, baked when the note starts. Bigger = longer, darker.",
         "Resonance and formant mix. Wetter = squelchier.",
@@ -671,168 +742,93 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
         "Above about 0.55 switches distortion to fold. Also a matrix source."
     };
     for (int i = 0; i < 7; ++i)
-        addK (ParamID::macro[i], macN[i], macT[i]);
-    addK (ParamID::voices, "Voices", "How many notes at once (1-64).");
-    addC (ParamID::polyMode, "Poly", "Mono, legato or polyphonic.");
-    addK (ParamID::glide, "Glide", "Seconds to slide to the next note in mono and legato. Zero snaps. Poly stays instant.");
-    addC (ParamID::bendRange, "Bend", "Pitch-bend range: 2, 12 or 24 semitones. MPE is already per channel.");
-    addC (ParamID::randMode, "Rand Mode", "Flavour for All / Safe randomize (Clean, Psytrance, Forest...).");
+        macros[i] = addK (ParamID::macro[i], macN[i], macT[i], macH[i]);
+    voices = addK (ParamID::voices, "Voices", "How many notes at once (1-64).");
+    polyMode = addC (ParamID::polyMode, "Mode", "Mono, legato or polyphonic.");
+    glide = addK (ParamID::glide, "Glide", "Seconds to slide to the next note in mono and legato. Zero snaps. Poly stays instant.");
+    bendRange = addC (ParamID::bendRange, "Bend", "Pitch-bend range: 2, 12 or 24 semitones. MPE is already per channel.");
+    randMode = addC (ParamID::randMode, "Flavour", "Flavour for All / Safe randomize (Clean, Psytrance, Forest...).");
 
-    // Osc: one row per oscillator (type, 6 knobs, FM into osc 1..4), then FM env + recipe.
-    page = 1;
-    pageCols[page] = 11;
-    for (int i = 0; i < 4; ++i)
-    {
-        const auto n = juce::String (i + 1);
-        addC (ParamID::oType[i], "Osc" + n,
-              "Osc " + n + " waveform: sine, tri, saw, square, wavetable, noise or user WT.");
-        addK (ParamID::oVol[i], "Vol", "Osc " + n + " volume.");
-        addK (ParamID::oPan[i], "Pan", "Osc " + n + " pan (left to right).");
-        addK (ParamID::oCoarse[i], "Coarse", "Osc " + n + " pitch in semitones.");
-        addK (ParamID::oFine[i], "Fine", "Osc " + n + " pitch in cents.");
-        addK (ParamID::oPhase[i], "Phase", "Osc " + n + " start phase.");
-        addK (ParamID::oWidth[i], "Width", "Osc " + n + " stereo width.");
-        for (int j = 0; j < 4; ++j)
-            addK (ParamID::fm[i][j], "FM" + n + ">" + juce::String (j + 1),
-                  "How much osc " + n + " modulates osc " + juce::String (j + 1) + ".");
-    }
-    addK (ParamID::fmEnvDepth, "FM Env", "How much the FM envelope scales the FM amounts.");
-    addC (ParamID::fmRecipe, "Recipe", "Preset FM graph. Click Apply FM to write it.");
-
-    // Filter: formant row, filter row, distortion row.
-    page = 2;
-    pageCols[page] = 6;
-    addC (ParamID::formA, "Form A", "First formant vowel.");
-    addC (ParamID::formB, "Form B", "Second formant vowel.");
-    addK (ParamID::formMorph, "Morph", "Blend Form A into Form B.");
-    addK (ParamID::formTrack, "Track", "How much formants follow the MIDI note.");
-    addK (ParamID::formMix, "Mix", "Dry/wet of the formant filter.");
-    addC (ParamID::filtType, "Filter", "LP, HP, BP, notch, comb or SVF.");
-    addK (ParamID::cutoff, "Cutoff", "Filter cutoff frequency.");
-    addK (ParamID::res, "Res", "Filter resonance / emphasis.");
-    addK (ParamID::filtDrive, "Drive", "Saturation into the filter.");
-    addK (ParamID::keyTrack, "Key", "How much cutoff follows the MIDI note.");
-    addK (ParamID::filtEnv, "Env", "How much the filter envelope moves cutoff.");
-    addC (ParamID::distType, "Dist", "Soft, hard, tube, fold, crush or digital.");
-    addK (ParamID::distDrive, "Drive", "Distortion amount.");
-    addK (ParamID::distTone, "Tone", "Distortion brightness.");
-    addK (ParamID::distMix, "Mix", "Dry/wet of the distortion.");
-
-    // Motion: two envelopes per row, then two LFOs per row.
-    page = 3;
-    pageCols[page] = 8;
-    static const char* envN[] = { "Pitch", "Filt", "FM", "Form", "Dist", "Amp" };
+    page = Motion;
     static const char* envWhat[] = {
-        "pitch", "filter cutoff", "FM amounts", "formant morph", "distortion", "amplitude"
+        "pitch", "filter cutoff", "FM amounts", "vowel morph", "distortion", "loudness"
     };
     for (int i = 0; i < 6; ++i)
     {
         const juce::String w = envWhat[i];
-        addK (ParamID::eAtk[i], juce::String (envN[i]) + " A", "Attack of the " + w + " envelope.");
-        addK (ParamID::eDec[i], "D", "Decay of the " + w + " envelope.");
-        addK (ParamID::eSus[i], "S", "Sustain of the " + w + " envelope.");
-        addK (ParamID::eRel[i], "R", "Release of the " + w + " envelope.");
+        envAtk[i] = addK (ParamID::eAtk[i], "Attack", "Attack of the " + w + " envelope.");
+        envDec[i] = addK (ParamID::eDec[i], "Decay", "Decay of the " + w + " envelope.");
+        envSus[i] = addK (ParamID::eSus[i], "Sustain", "Sustain of the " + w + " envelope.");
+        envRel[i] = addK (ParamID::eRel[i], "Release", "Release of the " + w + " envelope.");
     }
     for (int i = 0; i < 4; ++i)
     {
         const auto n = juce::String (i + 1);
-        addC (ParamID::lShape[i], "LFO" + n, "LFO " + n + " shape (sine, tri, ramp, random, S&H, user).");
-        addK (ParamID::lRate[i], "Rate", "LFO " + n + " rate in Hz (or tempo if Sync is on).");
-        addK (ParamID::lAmt[i], "Amt", "LFO " + n + " amount.");
-        addT (ParamID::lSync[i], "Sync", "Lock LFO " + n + " rate to host tempo.");
+        lShape[i] = addC (ParamID::lShape[i], "Shape", "LFO " + n + " shape (sine, tri, ramp, random, S&H, user).");
+        lRate[i] = addK (ParamID::lRate[i], "Rate", "LFO " + n + " rate in Hz (or tempo if Sync is on).");
+        lAmt[i] = addK (ParamID::lAmt[i], "Amount", "LFO " + n + " amount.");
+        lSync[i] = addT (ParamID::lSync[i], "Sync", "Lock LFO " + n + " rate to host tempo.");
     }
 
-    // Matrix: first 8 of 32 routes, two per row. A route does nothing until it is On.
-    page = 4;
-    pageCols[page] = 8;
-    for (int i = 0; i < 8; ++i)
+    page = Matrix;
+    for (int i = 0; i < 16; ++i)
     {
         const auto n = juce::String (i + 1);
-        addT (ParamID::mxOn[i], "On " + n, "Lights route " + n + ". Does nothing until On.");
-        addC (ParamID::mxSrc[i], "Src", "Modulation source for route " + n + ".");
-        addC (ParamID::mxDst[i], "Dst", "What route " + n + " modulates.");
-        addK (ParamID::mxAmt[i], "Amt", "How much route " + n + " applies (negative inverts).");
+        mxOn[i] = addT (ParamID::mxOn[i], "On", "Lights route " + n + ". Does nothing until On.");
+        mxSrc[i] = addC (ParamID::mxSrc[i], {}, "Modulation source for route " + n + ".");
+        mxDst[i] = addC (ParamID::mxDst[i], {}, "What route " + n + " modulates.");
+        mxAmt[i] = addK (ParamID::mxAmt[i], "Amount", "How much route " + n + " applies (negative inverts).");
     }
 
-    // FX: three effects per row, each "On + up to 3 knobs", then the 9 order slots.
-    page = 5;
-    pageCols[page] = 12;
-    struct FxSpec
-    {
-        const char* on;
-        const char* name;
-        const char* onTip;
-        const char* k[3];
-        const char* kn[3];
-        const char* kt[3];
-    };
-    static const FxSpec kFx[] = {
-        { ParamID::eqOn,  "EQ",     "Enable 3-band EQ.",
-          { ParamID::eqLo, ParamID::eqMid, ParamID::eqHi }, { "Lo", "Mid", "Hi" },
-          { "Low shelf gain.", "Mid band gain.", "High shelf gain." } },
-        { ParamID::cmpOn, "Comp",   "Enable compressor.",
-          { ParamID::cmpTh, ParamID::cmpRt, nullptr }, { "Thresh", "Ratio", nullptr },
-          { "Level above which compression starts.", "How hard it squashes.", nullptr } },
-        { ParamID::dlyOn, "Delay",  "Enable delay. Knobs do nothing while off.",
-          { ParamID::dlyT, ParamID::dlyFb, nullptr }, { "Time", "FB", nullptr },
-          { "Delay time.", "How much repeats feed back.", nullptr } },
-        { ParamID::revOn, "Reverb", "Enable reverb.",
-          { ParamID::revSz, ParamID::revDm, nullptr }, { "Size", "Damp", nullptr },
-          { "Room size.", "How fast highs die in the tail.", nullptr } },
-        { ParamID::choOn, "Chorus", "Enable chorus.",
-          { ParamID::choRt, ParamID::choDp, nullptr }, { "Rate", "Depth", nullptr },
-          { "Chorus LFO rate.", "Chorus LFO depth.", nullptr } },
-        { ParamID::phOn,  "Phaser", "Enable phaser.",
-          { ParamID::phRt, ParamID::phDp, nullptr }, { "Rate", "Depth", nullptr },
-          { "Phaser LFO rate.", "Phaser LFO depth.", nullptr } },
-        { ParamID::flOn,  "Flanger","Enable flanger.",
-          { ParamID::flRt, ParamID::flFb, nullptr }, { "Rate", "FB", nullptr },
-          { "Flanger LFO rate.", "Flanger feedback (metallic when high).", nullptr } },
-        { ParamID::shOn,  "Shift",  "Enable frequency shifter.",
-          { ParamID::shHz, nullptr, nullptr }, { "Hz", nullptr, nullptr },
-          { "Shift in Hz (negative = down).", nullptr, nullptr } },
-        { ParamID::grOn,  "Grain",  "Enable grain delay.",
-          { ParamID::grSz, ParamID::grDn, nullptr }, { "Size", "Dens", nullptr },
-          { "Grain length.", "How many grains overlap.", nullptr } },
-    };
-    for (const auto& fx : kFx)
-    {
-        addT (fx.on, fx.name, fx.onTip);
-        for (int k = 0; k < 3; ++k)
-        {
-            if (fx.k[k] != nullptr)
-                addK (fx.k[k], fx.kn[k], fx.kt[k]);
-            else
-                gap (1);
-        }
-    }
+    page = Fx;
+    eqOn = addT (ParamID::eqOn, "EQ", "Enable EQ. Knobs do nothing while off.");
+    eqLo = addK (ParamID::eqLo, "Lo", "Low shelf gain.");
+    eqMid = addK (ParamID::eqMid, "Gain", "Overall gain while EQ is on (not a mid band).");
+    eqHi = addK (ParamID::eqHi, "Hi", "High shelf gain.");
+    cmpOn = addT (ParamID::cmpOn, "Comp", "Enable compressor. Knobs do nothing while off.");
+    cmpTh = addK (ParamID::cmpTh, "Threshold", "Level above which compression starts.");
+    cmpRt = addK (ParamID::cmpRt, "Ratio", "How hard it squashes.");
+    dlyOn = addT (ParamID::dlyOn, "Delay", "Enable delay. Knobs do nothing while off.");
+    dlyT = addK (ParamID::dlyT, "Time", "Delay time.");
+    dlyFb = addK (ParamID::dlyFb, "Feedback", "How much repeats feed back.");
+    revOn = addT (ParamID::revOn, "Reverb", "Enable reverb. Knobs do nothing while off.");
+    revSz = addK (ParamID::revSz, "Size", "Room size.");
+    revDm = addK (ParamID::revDm, "Damp", "How fast highs die in the tail.");
+    choOn = addT (ParamID::choOn, "Chorus", "Enable chorus. Knobs do nothing while off.");
+    choRt = addK (ParamID::choRt, "Rate", "Chorus LFO rate.");
+    choDp = addK (ParamID::choDp, "Depth", "Chorus LFO depth.");
+    phOn = addT (ParamID::phOn, "Phaser", "Enable phaser. Knobs do nothing while off.");
+    phRt = addK (ParamID::phRt, "Rate", "Phaser LFO rate.");
+    phDp = addK (ParamID::phDp, "Depth", "Phaser LFO depth.");
+    flOn = addT (ParamID::flOn, "Flanger", "Enable flanger. Knobs do nothing while off.");
+    flRt = addK (ParamID::flRt, "Rate", "Flanger LFO rate.");
+    flFb = addK (ParamID::flFb, "Feedback", "Flanger feedback (metallic when high).");
+    shOn = addT (ParamID::shOn, "Ring shift", "Enable ring-mod shift. Knobs do nothing while off.");
+    shHz = addK (ParamID::shHz, "Hz", "Shift in Hz (negative = down).");
+    grOn = addT (ParamID::grOn, "Stutter", "Enable stutter delay. Knobs do nothing while off.");
+    grSz = addK (ParamID::grSz, "Size", "Stutter grain length.");
+    grDn = addK (ParamID::grDn, "Density", "How many grains overlap.");
     for (int i = 0; i < 9; ++i)
-        addC (ParamID::fxSlot[i], "Slot " + juce::String (i + 1),
-              "Which effect sits in slot " + juce::String (i + 1) + " of the chain.");
+        fxSlot[i] = addC (ParamID::fxSlot[i], juce::String (i + 1),
+                          "Which effect sits in slot " + juce::String (i + 1) + " of the chain. Left is first.");
 
-    pageCols[6] = 1;
-    pageCols[7] = 1;
-
-    // Button rows. ToggleButtons are only used for the LnF look here, so they must not latch.
+    // ToggleButtons are only used for the LnF look here, so they must not latch.
     for (auto* b : { &playBtn, &randAll, &randSafe, &randFx, &randMut, &saveBtn, &loadBtn, &favBtn, &wtBtn, &recipeBtn })
     {
         b->setClickingTogglesState (false);
         content.addChildComponent (b);
     }
-    pageButtons[0] = { &playBtn, &randAll, &randSafe, &randFx, &randMut, &recipeBtn, &wtBtn };
-    pageButtons[1] = { &recipeBtn, &wtBtn };
-    pageButtons[6] = { &saveBtn, &loadBtn, &favBtn };
 
-    playBtn.setTooltip ("Play a test note (C3).");
+    playBtn.setTooltip ("Play a test toot (C3).");
     randAll.setTooltip ("Random new patch. Uses Rand Mode for flavour.");
     randSafe.setTooltip ("Random, tamer ranges. Uses Rand Mode.");
     randFx.setTooltip ("Random delay / reverb only. Leaves the rest.");
     randMut.setTooltip ("Nudge the current patch a little.");
-    recipeBtn.setTooltip ("Write the Osc-page FM recipe into the oscillators.");
+    recipeBtn.setTooltip ("Write the Recipe menu into the FM grid. The menu alone does nothing.");
     wtBtn.setTooltip ("Load a wav file as the user wavetable (Osc type User WT).");
     saveBtn.setTooltip ("Save this patch as a .f4rtp in the library folder.");
     loadBtn.setTooltip ("Import a .f4rtp into the library and load it.");
-    favBtn.setTooltip ("Toggle favourite on the current patch (star in the Browser).");
+    favBtn.setTooltip ("Toggle favourite on the current patch (star in Patches).");
     playBtn.onClick = [this] { proc.requestNote(); };
     randAll.onClick = [this] { proc.randomize (f4rt::randAll); };
     randSafe.onClick = [this] { proc.randomize (f4rt::randSafe); };
@@ -868,25 +864,22 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     vizMode.addItemList ({ "Wave", "Spectrum", "Spectrogram", "FM", "Env", "Matrix" }, 1);
     vizMode.setSelectedId (1, juce::dontSendNotification);
     vizMode.onChange = [this] { viz.mode = vizMode.getSelectedId() - 1; viz.repaint(); };
-    vizMode.setTooltip ("What the Viz page draws.");
+    vizMode.setTooltip ("What the scope draws.");
     content.addChildComponent (vizMode);
-    viz.setTooltip ("Live view of the current Viz mode.");
+    viz.setTooltip ("Live view of the current scope mode.");
     content.addChildComponent (viz);
 
-    // Top bar.
-    pageBar.onStep = [this] (int d) { cyclePage (d); };
-    pageBar.onOpen = [this] { openPageMenu(); };
     patchBar.onStep = [this] (int d) { cyclePatch (d); };
     patchBar.onOpen = [this] { openPatchMenu(); };
     bankBar.onStep = [this] (int d) { cycleBank (d); };
     bankBar.onOpen = [this] { openBankMenu(); };
-    pageBar.setTooltip ("Page. Arrows step, click the name for the list.");
+    pageTabs.setTooltip ("Sound is the chain. Motion, Matrix, FX, Patches are extra.");
     patchBar.setTooltip ("Patch. Arrows step factory then user; click for save / load.");
     bankBar.setTooltip ("Category. Arrows jump to the first patch of the next category.");
-    for (auto* c : { (juce::Component*) &pageBar, (juce::Component*) &patchBar,
-                     (juce::Component*) &bankBar, (juce::Component*) &volumeStrip })
+    content.addAndMakeVisible (pageTabs);
+    for (auto* c : { (juce::Component*) &patchBar, (juce::Component*) &bankBar,
+                     (juce::Component*) &volumeStrip })
         content.addAndMakeVisible (c);
-    pageBar.setText (kPageNames[0]);
     refreshBars();
 
     content.addChildComponent (aboutBox);
@@ -919,7 +912,7 @@ void F4RTAudioProcessorEditor::timerCallback()
 {
     refreshBars();
     volumeStrip.refresh();
-    if (editorPage == 0 || editorPage == 7)
+    if (editorPage == Sound)
         viz.repaint();
 }
 
@@ -960,52 +953,273 @@ void F4RTAudioProcessorEditor::paintContent (juce::Graphics& g)
 
     g.setColour (kChassis.brighter (0.08f));
     g.drawRoundedRectangle (content.getLocalBounds().toFloat().reduced (1.5f), 2.f, 2.f);
+
+    for (const auto& s : sections)
+    {
+        auto b = s.bounds.toFloat();
+        g.setColour (kChassis.brighter (0.12f));
+        g.fillRoundedRectangle (b, 4.f);
+        g.setColour (kGrey);
+        g.drawRoundedRectangle (b.reduced (0.5f), 4.f, 1.f);
+        auto t = s.bounds.reduced (8, 1).removeFromTop (kSectionHead);
+        g.setColour (kYellow);
+        g.setFont (boldFont (11.f));
+        g.drawText (s.title, t, juce::Justification::centredLeft, true);
+        if (s.sub.isNotEmpty())
+        {
+            g.setColour (kGrey);
+            g.setFont (boldFont (10.f));
+            g.drawText (s.sub, t, juce::Justification::centredRight, true);
+        }
+    }
+
+    if (editorPage != Sound)
+        return;
+
+    g.setFont (boldFont (11.f));
+    g.setColour (kYellow);
+    for (int i = 0; i < 4; ++i)
+        if (! oscLabels[i].isEmpty())
+            g.drawText ("Osc " + juce::String (i + 1), oscLabels[i],
+                        juce::Justification::centred, false);
+
+    if (! fmGrid.isEmpty())
+    {
+        const int cw = juce::jmax (1, fmGrid.getWidth() / 4);
+        const int ch = juce::jmax (1, fmGrid.getHeight() / 4);
+        g.setFont (boldFont (9.f));
+        g.setColour (kGrey);
+        for (int j = 0; j < 4; ++j)
+            g.drawText ("into " + juce::String (j + 1),
+                        fmGrid.getX() + j * cw, fmGrid.getY() - 14, cw, 14,
+                        juce::Justification::centred, false);
+        for (int i = 0; i < 4; ++i)
+            g.drawText (juce::String (i + 1),
+                        fmGrid.getX() - 22, fmGrid.getY() + i * ch, 20, ch,
+                        juce::Justification::centred, false);
+    }
+
+    g.setColour (kYellow);
+    for (auto gap : chainGaps)
+    {
+        if (gap.getWidth() < 8)
+            continue;
+        juce::Path p;
+        const float cx = (float) gap.getCentreX();
+        const float cy = (float) gap.getCentreY();
+        p.addTriangle (cx - 4.f, cy - 6.f, cx + 5.f, cy, cx - 4.f, cy + 6.f);
+        g.fillPath (p);
+    }
+}
+
+void F4RTAudioProcessorEditor::placeRow (juce::Rectangle<int> r, juce::Component* const* items, int n)
+{
+    if (n <= 0)
+        return;
+    const int w = juce::jmax (1, r.getWidth() / n);
+    for (int i = 0; i < n; ++i)
+        if (items[i] != nullptr)
+            items[i]->setBounds (r.getX() + i * w, r.getY(), w, r.getHeight());
+}
+
+void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
+{
+    const int h = r.getHeight();
+    auto top = r.removeFromTop (h * 44 / 100);
+    r.removeFromTop (5);
+    auto chain = r.removeFromTop (h * 24 / 100);
+    r.removeFromTop (5);
+    auto scope = r.removeFromBottom (juce::jmax (64, h * 14 / 100));
+    r.removeFromBottom (4);
+
+    auto oscS = top.removeFromLeft (top.getWidth() * 62 / 100);
+    auto fmS = top;
+    sections.push_back ({ oscS, "Oscillators", "who makes the toot" });
+    sections.push_back ({ fmS, "FM", "who bends whose pitch" });
+
+    auto oscBody = oscS.reduced (4).withTrimmedTop (kSectionHead);
+    wtBtn.setBounds (oscBody.removeFromTop (24).removeFromRight (100).reduced (2));
+    oscBody.removeFromTop (2);
+    const int orh = juce::jmax (1, oscBody.getHeight() / 4);
+    for (int i = 0; i < 4; ++i)
+    {
+        auto row = oscBody.removeFromTop (orh);
+        oscLabels[i] = row.removeFromLeft (52);
+        juce::Component* cells[] = { oType[i], oVol[i], oPan[i], oCoarse[i], oFine[i], oPhase[i], oWidth[i] };
+        placeRow (row, cells, 7);
+    }
+
+    auto fmBody = fmS.reduced (4).withTrimmedTop (kSectionHead);
+    auto tools = fmBody.removeFromTop (52);
+    recipeBtn.setBounds (tools.removeFromRight (88).reduced (2, 10));
+    juce::Component* toolC[] = { fmRecipe, fmEnv };
+    placeRow (tools, toolC, 2);
+    fmBody.removeFromTop (2);
+    fmBody.removeFromTop (14);
+    fmBody.removeFromLeft (22);
+    fmGrid = fmBody;
+    const int fmcw = juce::jmax (1, fmGrid.getWidth() / 4);
+    const int fmch = juce::jmax (1, fmGrid.getHeight() / 4);
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            fm[i][j]->setBounds (fmGrid.getX() + j * fmcw, fmGrid.getY() + i * fmch, fmcw, fmch);
+
+    const int gap = 14;
+    const int colW = juce::jmax (1, (chain.getWidth() - 2 * gap) / 3);
+    auto vowel = chain.removeFromLeft (colW);
+    chainGaps[0] = chain.removeFromLeft (gap);
+    auto filt = chain.removeFromLeft (colW);
+    chainGaps[1] = chain.removeFromLeft (gap);
+    auto grit = chain;
+    sections.push_back ({ vowel, "Vowel", "mouth" });
+    sections.push_back ({ filt, "Filter", "squelch" });
+    sections.push_back ({ grit, "Grit", "distortion" });
+    juce::Component* v[] = { formA, formB, formMorph, formTrack, formMix };
+    juce::Component* f[] = { filtType, cutoff, res, filtDrive, keyTrack, filtEnv };
+    juce::Component* d[] = { distType, distDrive, distTone, distMix };
+    placeRow (vowel.reduced (4).withTrimmedTop (kSectionHead), v, 5);
+    placeRow (filt.reduced (4).withTrimmedTop (kSectionHead), f, 6);
+    placeRow (grit.reduced (4).withTrimmedTop (kSectionHead), d, 4);
+
+    auto charS = r.removeFromLeft (r.getWidth() * 62 / 100);
+    auto voiceS = r;
+    sections.push_back ({ charS, "Character", "twist the sound from here" });
+    sections.push_back ({ voiceS, "Voice", "how notes live" });
+    juce::Component* mac[] = { macros[0], macros[1], macros[2], macros[3], macros[4], macros[5], macros[6] };
+    placeRow (charS.reduced (4).withTrimmedTop (kSectionHead), mac, 7);
+
+    auto vb = voiceS.reduced (4).withTrimmedTop (kSectionHead);
+    auto btns = vb.removeFromTop (28);
+    playBtn.setBounds (btns.removeFromLeft (64).reduced (2));
+    for (auto* b : { &randAll, &randSafe, &randFx, &randMut })
+        b->setBounds (btns.removeFromLeft (64).reduced (2));
+    juce::Component* vc[] = { voices, polyMode, glide, bendRange, randMode };
+    placeRow (vb, vc, 5);
+
+    sections.push_back ({ scope, "Scope", {} });
+    vizMode.setBounds (scope.removeFromTop (22).removeFromLeft (160).reduced (2, 1));
+    viz.setBounds (scope.reduced (4, 2));
+}
+
+void F4RTAudioProcessorEditor::layoutMotion (juce::Rectangle<int> r)
+{
+    static const char* envTitle[] = { "Pitch", "Filter", "FM", "Vowel", "Grit", "Loudness" };
+    static const char* envSub[] = { "always on", "moves cutoff", "scales FM", "morphs vowel",
+                                    "pushes drive", "sustain near 0 = one-shot" };
+    auto envArea = r.removeFromTop (r.getHeight() * 62 / 100);
+    r.removeFromTop (6);
+    const int cw = juce::jmax (1, envArea.getWidth() / 3);
+    const int ch = juce::jmax (1, envArea.getHeight() / 2);
+    for (int i = 0; i < 6; ++i)
+    {
+        auto card = juce::Rectangle<int> (envArea.getX() + (i % 3) * cw,
+                                          envArea.getY() + (i / 3) * ch, cw, ch).reduced (3);
+        sections.push_back ({ card, envTitle[i], envSub[i] });
+        juce::Component* e[] = { envAtk[i], envDec[i], envSus[i], envRel[i] };
+        placeRow (card.reduced (4).withTrimmedTop (kSectionHead), e, 4);
+    }
+
+    const int lw = juce::jmax (1, r.getWidth() / 4);
+    for (int i = 0; i < 4; ++i)
+    {
+        auto card = juce::Rectangle<int> (r.getX() + i * lw, r.getY(), lw, r.getHeight()).reduced (3);
+        sections.push_back ({ card, "LFO " + juce::String (i + 1), {} });
+        juce::Component* l[] = { lShape[i], lRate[i], lAmt[i], lSync[i] };
+        placeRow (card.reduced (4).withTrimmedTop (kSectionHead), l, 4);
+    }
+}
+
+void F4RTAudioProcessorEditor::layoutMatrix (juce::Rectangle<int> r)
+{
+    sections.push_back ({ r, "Cables", "On  |  From  →  To  |  Amount   ·   16 of 32" });
+    auto body = r.reduced (8).withTrimmedTop (kSectionHead);
+    const int onW = 70, amtW = 110;
+    const int rh = juce::jmax (1, body.getHeight() / 16);
+    for (int i = 0; i < 16; ++i)
+    {
+        auto row = body.removeFromTop (rh);
+        mxOn[i]->setBounds (row.removeFromLeft (onW));
+        mxAmt[i]->setBounds (row.removeFromRight (amtW));
+        const int half = row.getWidth() / 2;
+        mxSrc[i]->setBounds (row.removeFromLeft (half));
+        mxDst[i]->setBounds (row);
+    }
+}
+
+void F4RTAudioProcessorEditor::layoutFx (juce::Rectangle<int> r)
+{
+    auto orderS = r.removeFromBottom (100);
+    r.removeFromBottom (6);
+    sections.push_back ({ orderS, "Order", "left is first" });
+    juce::Component* slots[] = { fxSlot[0], fxSlot[1], fxSlot[2], fxSlot[3], fxSlot[4],
+                                 fxSlot[5], fxSlot[6], fxSlot[7], fxSlot[8] };
+    placeRow (orderS.reduced (4).withTrimmedTop (kSectionHead), slots, 9);
+
+    Toggle* on[9] = { eqOn, cmpOn, dlyOn, revOn, choOn, phOn, flOn, shOn, grOn };
+    Knob* ka[9][3] = {
+        { eqLo, eqMid, eqHi }, { cmpTh, cmpRt, nullptr }, { dlyT, dlyFb, nullptr },
+        { revSz, revDm, nullptr }, { choRt, choDp, nullptr }, { phRt, phDp, nullptr },
+        { flRt, flFb, nullptr }, { shHz, nullptr, nullptr }, { grSz, grDn, nullptr }
+    };
+    const int cw = juce::jmax (1, r.getWidth() / 3);
+    const int ch = juce::jmax (1, r.getHeight() / 3);
+    for (int i = 0; i < 9; ++i)
+    {
+        auto card = juce::Rectangle<int> (r.getX() + (i % 3) * cw,
+                                          r.getY() + (i / 3) * ch, cw, ch).reduced (3);
+        sections.push_back ({ card, {}, {} });
+        auto body = card.reduced (4);
+        on[i]->setBounds (body.removeFromLeft (88));
+        juce::Component* ks[3] = { ka[i][0], ka[i][1], ka[i][2] };
+        int n = 0;
+        while (n < 3 && ks[n] != nullptr)
+            ++n;
+        if (n > 0)
+            placeRow (body, ks, n);
+    }
+}
+
+void F4RTAudioProcessorEditor::layoutPatches (juce::Rectangle<int> r)
+{
+    sections.push_back ({ r, "Patches", "200 factory seeds, then your saves" });
+    auto body = r.reduced (8).withTrimmedTop (kSectionHead);
+    auto row = body.removeFromTop (28);
+    saveBtn.setBounds (row.removeFromLeft (84).reduced (2));
+    loadBtn.setBounds (row.removeFromLeft (84).reduced (2));
+    favBtn.setBounds (row.removeFromLeft (64).reduced (2));
+    search.setBounds (row.reduced (2));
+    body.removeFromTop (4);
+    browser.setBounds (body);
 }
 
 void F4RTAudioProcessorEditor::layoutContent()
 {
+    sections.clear();
+    fmGrid = {};
+    chainGaps[0] = {};
+    chainGaps[1] = {};
+    for (auto& o : oscLabels)
+        o = {};
+
     auto r = content.getLocalBounds().reduced (kPad);
     auto title = r.removeFromTop (kTitleH);
     title.removeFromLeft (kTitleHitW);
     volumeStrip.setBounds (title.removeFromRight (240).reduced (2, 4));
-    pageBar.setBounds (title.removeFromLeft (88).reduced (4, 4));
     const int barW = title.getWidth() / 2;
     patchBar.setBounds (title.removeFromLeft (barW).reduced (4, 4));
     bankBar.setBounds (title.reduced (4, 4));
     r.removeFromTop (4);
+    pageTabs.setBounds (r.removeFromTop (kTabH));
+    r.removeFromTop (4);
 
-    if (! pageButtons[editorPage].isEmpty())
+    switch (editorPage)
     {
-        auto row = r.removeFromTop (kBtnRowH);
-        for (auto* b : pageButtons[editorPage])
-            b->setBounds (row.removeFromLeft (84).reduced (2, 2));
-        r.removeFromTop (4);
-    }
-
-    if (editorPage == 6)
-    {
-        search.setBounds (r.removeFromTop (24));
-        r.removeFromTop (4);
-        browser.setBounds (r);
-    }
-    else if (editorPage == 7)
-    {
-        vizMode.setBounds (r.removeFromTop (24).removeFromLeft (160));
-        r.removeFromTop (4);
-        viz.setBounds (r);
-    }
-    else
-    {
-        const auto& items = pageItems[editorPage];
-        const int cols = juce::jmax (1, pageCols[editorPage]);
-        const int rows = juce::jmax (1, (items.size() + cols - 1) / cols);
-        const int cw = r.getWidth() / cols;
-        const int rh = juce::jmin (r.getHeight() / rows, 130);  // sparse pages stay compact
-        for (int i = 0; i < items.size(); ++i)
-            if (items[i] != nullptr)
-                items[i]->setBounds (r.getX() + (i % cols) * cw, r.getY() + (i / cols) * rh, cw, rh);
-        if (editorPage == 0)
-            viz.setBounds (r.withTrimmedTop (rows * rh + 4));
+        case Sound:   layoutSound (r);   break;
+        case Motion:  layoutMotion (r);  break;
+        case Matrix:  layoutMatrix (r);  break;
+        case Fx:      layoutFx (r);      break;
+        case Patches: layoutPatches (r); break;
+        default: break;
     }
 
     aboutBox.setBounds (content.getLocalBounds());
@@ -1014,24 +1228,43 @@ void F4RTAudioProcessorEditor::layoutContent()
 void F4RTAudioProcessorEditor::applyPageVisibility()
 {
     for (int p = 0; p < kPageCount; ++p)
-    {
         for (auto* c : pageItems[p])
             if (c != nullptr)
                 c->setVisible (false);
-        for (auto* c : pageButtons[p])
-            c->setVisible (false);
-    }
+
+    for (auto* b : { &playBtn, &randAll, &randSafe, &randFx, &randMut, &saveBtn, &loadBtn,
+                     &favBtn, &wtBtn, &recipeBtn })
+        b->setVisible (false);
+    search.setVisible (false);
+    browser.setVisible (false);
+    vizMode.setVisible (false);
+    viz.setVisible (false);
+
     for (auto* c : pageItems[editorPage])
         if (c != nullptr)
             c->setVisible (true);
-    for (auto* c : pageButtons[editorPage])
-        c->setVisible (true);
-    search.setVisible (editorPage == 6);
-    browser.setVisible (editorPage == 6);
-    vizMode.setVisible (editorPage == 7);
-    viz.setVisible (editorPage == 0 || editorPage == 7);
-    viz.mode = (editorPage == 0) ? 0 : vizMode.getSelectedId() - 1;
+
+    const bool sound = editorPage == Sound;
+    playBtn.setVisible (sound);
+    randAll.setVisible (sound);
+    randSafe.setVisible (sound);
+    randFx.setVisible (sound);
+    randMut.setVisible (sound);
+    recipeBtn.setVisible (sound);
+    wtBtn.setVisible (sound);
+    viz.setVisible (sound);
+    vizMode.setVisible (sound);
+    viz.mode = vizMode.getSelectedId() - 1;
+
+    const bool patches = editorPage == Patches;
+    saveBtn.setVisible (patches);
+    loadBtn.setVisible (patches);
+    favBtn.setVisible (patches);
+    search.setVisible (patches);
+    browser.setVisible (patches);
+
     layoutContent();
+    pageTabs.repaint();
     if (aboutBox.isVisible())
         aboutBox.toFront (false);
 }
@@ -1039,28 +1272,7 @@ void F4RTAudioProcessorEditor::applyPageVisibility()
 void F4RTAudioProcessorEditor::setEditorPage (int page)
 {
     editorPage = juce::jlimit (0, kPageCount - 1, page);
-    pageBar.setText (kPageNames[editorPage]);
     applyPageVisibility();
-}
-
-void F4RTAudioProcessorEditor::cyclePage (int delta)
-{
-    setEditorPage ((editorPage + delta + kPageCount) % kPageCount);
-}
-
-void F4RTAudioProcessorEditor::openPageMenu()
-{
-    juce::PopupMenu m;
-    m.setLookAndFeel (&panelLnF);  // menus are top-level windows and would otherwise use the default look
-    for (int i = 0; i < kPageCount; ++i)
-        m.addItem (i + 1, kPageNames[i], true, i == editorPage);
-    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
-    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (pageBar),
-                     [safe] (int result)
-                     {
-                         if (safe != nullptr && result > 0)
-                             safe->setEditorPage (result - 1);
-                     });
 }
 
 void F4RTAudioProcessorEditor::contentMouseUp (const juce::MouseEvent& e)

@@ -50,7 +50,7 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout
     const StringArray srcNames {
         "Env Pitch", "Env Filt", "Env FM", "Env Form", "Env Dist", "Env Amp",
         "LFO1", "LFO2", "LFO3", "LFO4", "Vel", "AT",
-        "Size", "Wet", "Anger", "Alien", "Squelch", "Rip", "Tox", "Random", "-"
+        "Size", "Wet", "Anger", "Alien", "Squelch", "Rip", "Tox", "Mod wheel", "-"
     };
     const StringArray dstNames { "Off", "Pitch", "Cutoff", "Res", "FM", "Formant", "Dist", "Amp", "Pan" };
     const StringArray fxNames { "EQ", "Comp", "Delay", "Reverb", "Chorus", "Phaser", "Flanger", "Shift", "Grain" };
