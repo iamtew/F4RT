@@ -14,7 +14,7 @@ The `dist` artifact holds:
 
 - `F4RT-<version>-win-x64-vst3.zip`
 - `F4RT-<version>-win-x64-standalone.zip`
-- `F4RT-<version>-win-x64.msi`
+- `F4RT-<version>-win-x64-installer.msi`
 - `F4RT-<version>-linux-x64-vst3.zip`
 - `F4RT-<version>-linux-x64-standalone.zip`
 - `F4RT-<version>-mac-universal-vst3.zip`
