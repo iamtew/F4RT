@@ -13,9 +13,12 @@ constexpr const char* kPatchExt = ".f4rtp";
 
 juce::File libraryRoot()
 {
-    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-        .getChildFile ("Stupid Systems LLC")
-        .getChildFile ("F4RT");
+    const auto appData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
+    auto neu = appData.getChildFile ("Stupid Audio").getChildFile ("F4RT");
+    const auto old = appData.getChildFile ("Stupid Systems LLC").getChildFile ("F4RT");
+    if (! neu.isDirectory() && old.isDirectory())
+        old.copyDirectoryTo (neu);
+    return neu;
 }
 
 juce::File ensureDir (juce::File dir)

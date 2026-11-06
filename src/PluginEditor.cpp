@@ -262,7 +262,7 @@ void F4RTAudioProcessorEditor::AboutBox::paint (juce::Graphics& g)
     g.setFont (boldFont (12.f));
     g.setColour (kLight);
     g.drawText ("v" JucePlugin_VersionString, r.removeFromTop (18), juce::Justification::centred, false);
-    g.drawText ("Stupid Systems LLC", r.removeFromTop (16), juce::Justification::centred, false);
+    g.drawText ("Stupid Audio", r.removeFromTop (16), juce::Justification::centred, false);
     g.drawText ("MIT", r.removeFromTop (16), juce::Justification::centred, false);
 }
 

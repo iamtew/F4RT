@@ -15,7 +15,7 @@ Left to right:
 
 Under that, five tabs: **Sound**, **Motion**, **Matrix**, **FX**, **Patches**.
 
-Saved patches go to `%APPDATA%\Stupid Systems LLC\F4RT\Patches` as `.f4rtp`. Loading a factory patch starts from Init, so FX and matrix settings from the previous patch are cleared.
+Saved patches go to `%APPDATA%\Stupid Audio\F4RT\Patches` as `.f4rtp`. Loading a factory patch starts from Init, so FX and matrix settings from the previous patch are cleared.
 
 ## Sound
 

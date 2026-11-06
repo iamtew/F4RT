@@ -6,6 +6,6 @@ Voice is header-only: 4 osc → FM → stereo formant → filter → distortion,
 
 Default patch: osc1 sine, others muted, FX off, 8 voices.
 
-Patches: `%APPDATA%\Stupid Systems LLC\F4RT\Patches\*.f4rtp`. Favorites: `favorites.txt`.
+Patches: `%APPDATA%\Stupid Audio\F4RT\Patches\*.f4rtp`. Favorites: `favorites.txt`.
 
 Jucer `version=` is the binary version. No CMake.
