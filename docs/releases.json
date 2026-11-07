@@ -1,0 +1,13 @@
+{
+  "tag": "0.0.5",
+  "files": [
+    "F4RT-0.0.5-linux-x64-standalone.zip",
+    "F4RT-0.0.5-linux-x64-vst3.zip",
+    "F4RT-0.0.5-mac-universal-au.zip",
+    "F4RT-0.0.5-mac-universal-standalone.zip",
+    "F4RT-0.0.5-mac-universal-vst3.zip",
+    "F4RT-0.0.5-win-x64-standalone.zip",
+    "F4RT-0.0.5-win-x64-vst3.zip",
+    "F4RT-0.0.5-win-x64.msi"
+  ]
+}
