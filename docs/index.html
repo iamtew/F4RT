@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>F4RT | PsyFart Designer</title>
-  <meta name="description" content="PsyFart Designer">
+  <title>F4RT</title>
+  <meta name="description" content="A free MIDI instrument for psytrance farts, squelches, croaks and zaps. Four oscillators, FM, formants, and a randomizer. VST3, AU, and standalone.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="F4RT | PsyFart Designer">
-  <meta property="og:description" content="PsyFart Designer">
+  <meta property="og:title" content="F4RT">
+  <meta property="og:description" content="A free MIDI instrument for psytrance farts, squelches, croaks and zaps. Four oscillators, FM, formants, and a randomizer. VST3, AU, and standalone.">
   <meta property="og:url" content="https://iamtew.github.io/F4RT/">
   <meta property="og:image" content="https://iamtew.github.io/F4RT/ogimage-F4RT.png">
   <meta property="og:image:width" content="1200">
@@ -21,82 +21,173 @@
   <canvas id="fx" aria-hidden="true"></canvas>
   <header>
     <a class="brand" href="#top"><img src="logo.png" alt="" width="36" height="36">F4RT</a>
-    <nav>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu">
+      <svg class="icon" aria-hidden="true"><use href="icons.svg#menu"></use></svg>
+    </button>
+    <nav id="site-nav">
       <a href="#sound">Sound</a>
-      <a href="#about">About</a>
-      <a href="notes.html?doc=MANUAL.md">Manual</a>
-      <a href="#notes">Notes</a>
+      <a href="#motion">Motion</a>
+      <a href="#matrix">Matrix</a>
+      <a href="#fx">FX</a>
+      <a href="#patches">Patches</a>
+      <a href="docs.html">Manual</a>
       <a href="https://audio.stupid.systems/">Stupid Audio</a>
     </nav>
   </header>
 
-  <main id="top">
-    <div class="lead">
-      <img class="hero" src="logo.png" alt="F4RT" width="160" height="160">
-      <div>
-        <h1>F4RT</h1>
-        <p class="tag">PsyFart Designer. MIDI-triggered psytrance farts, squelches, croaks, zaps.</p>
+  <main id="top" class="landing">
+    <div class="hero-panel">
+      <div class="lead">
+        <img class="hero" src="logo.png" alt="F4RT" width="160" height="160">
+        <div>
+          <h1>F4RT</h1>
+          <p class="tag">PsyFart Designer. For when the drop needs a toot.</p>
+        </div>
       </div>
+      <p>F4RT is a MIDI instrument for synthetic psytrance farts, squelches, croaks, and zaps. Four oscillators, a 4×4 FM grid, vowel formants, character macros, a randomizer with flavours, two hundred factory seeds, and an FX rack. MPE is welcome; so is a perfectly ordinary keyboard.</p>
+      <p>It is part of <a href="https://audio.stupid.systems/">Stupid Audio</a> — six free instruments. The rest of the pack lives over there.</p>
+      <div class="demos">
+        <p class="demo">
+          <a href="F4RT-DEMO1.mp3">F4RT-DEMO1.mp3</a>
+          <audio controls preload="metadata" src="F4RT-DEMO1.mp3">
+            Your browser cannot play this demo.
+          </audio>
+        </p>
+      </div>
+      <p class="actions">
+        <button type="button" class="download" data-dl-open>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#download"></use></svg>
+          Download
+        </button>
+        <a class="repo" href="https://github.com/iamtew/F4RT">
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#github"></use></svg>
+          GitHub
+        </a>
+      </p>
+      <p class="meta">VST3, Audio Unit on macOS, and standalone. Windows, Linux, and Mac.</p>
     </div>
-    <p>Four oscillators, FM, formants, macros, randomizer, 200 factory seeds, FX rack, MPE-friendly MIDI.</p>
-    <p>Part of <a href="https://audio.stupid.systems/">Stupid Audio</a> — five free instruments in one pack. The other four live over there.</p>
-    <p class="demo">
-      <a href="F4RT-DEMO1.mp3">F4RT-DEMO1.mp3</a>
-      <audio controls preload="metadata">
-        <source src="F4RT-DEMO1.mp3" type="audio/mpeg">
-        Your browser cannot play this demo.
-      </audio>
-    </p>
-    <p class="actions">
-      <a class="download" href="https://github.com/iamtew/F4RT/releases/latest">Download</a>
-      <a href="https://github.com/iamtew/F4RT">GitHub</a>
-    </p>
-    <p class="meta">VST3 and standalone.</p>
 
-    <section id="sound" class="card">
-      <h2>Sound</h2>
-      <p>The Sound tab is the chain: Oscillators, FM, Vowel → Filter → Grit, Character, Voice, and a Wave scope. Play fires a C3 preview. Import WT sits on Oscillators. Recipe does nothing until you Apply FM. Flavour plus All / Safe / FX / Mutate sit on Voice. Motion, Matrix, FX, and Patches are the other tabs.</p>
-      <figure>
-        <img class="shot" src="play.png" alt="F4RT Sound page">
-        <figcaption>Sound — Oscillators, FM, Vowel → Filter → Grit, Character, Voice, Wave scope.</figcaption>
-      </figure>
-      <div class="shots">
-        <figure>
-          <img class="shot" src="motion.png" alt="Motion page: envelopes and LFOs">
-          <figcaption>Motion — six envelopes and four LFOs with Sync.</figcaption>
-        </figure>
-        <figure>
-          <img class="shot" src="matrix.png" alt="Matrix page: modulation cables">
-          <figcaption>Matrix — Cables, first 16 of 32 (On, From, To, Amount).</figcaption>
-        </figure>
-        <figure>
-          <img class="shot" src="fx.png" alt="FX page: rack and order">
-          <figcaption>FX — named enable buttons; Order left is first.</figcaption>
-        </figure>
-        <figure>
-          <img class="shot" src="browser.png" alt="Patches page: factory seeds">
-          <figcaption>Patches — Save As, Import, Fav, search / tags.</figcaption>
-        </figure>
+    <section id="sound" class="feature">
+      <div>
+        <h2>Sound</h2>
+        <p>The whole voice on one screen: four oscillators, FM, vowel into filter into grit, then the character knobs and a voice strip. <strong>Play</strong> fires a C3 preview so you can toot without a keyboard. Import a wav as the user wavetable if the built-in shapes are not rude enough.</p>
+        <p>Hover any control for a short explanation. The plugin is happier when you do.</p>
       </div>
+      <button type="button" class="shot-open" data-shot="play.png" data-shot-alt="F4RT Sound page: oscillators, FM, vowel, filter, grit, character, voice, scope">
+        <img class="shot" src="play.png" alt="F4RT Sound page: oscillators, FM, vowel, filter, grit, character, voice, scope">
+      </button>
     </section>
 
-    <section id="about" class="card">
-      <h2>About</h2>
-      <p>Click the logo, F4RT, or version in the top left. The dialog has <strong>Check for update</strong> (GitHub tags) and <strong>Open releases</strong>.</p>
-      <figure>
+    <section id="motion" class="feature">
+      <div>
+        <h2>Motion</h2>
+        <p>Six envelopes (Pitch, Filter, FM, Vowel, Grit, Loudness) and four LFOs with shape, rate, amount, and Sync. Park Loudness sustain near zero and you get a one-shot toot instead of a held note. Very on-brand.</p>
+      </div>
+      <button type="button" class="shot-open" data-shot="motion.png" data-shot-alt="F4RT Motion page: six envelopes and four LFOs">
+        <img class="shot" src="motion.png" alt="F4RT Motion page: six envelopes and four LFOs">
+      </button>
+    </section>
+
+    <section id="matrix" class="feature">
+      <div>
+        <h2>Matrix</h2>
+        <p>Thirty-two cables. The first sixteen sit on this page (On, From, To, Amount); the rest are still automatable, just less photogenic. A route does nothing until its On switch is lit. Mod wheel is MIDI CC1, in case you were wondering.</p>
+      </div>
+      <button type="button" class="shot-open" data-shot="matrix.png" data-shot-alt="F4RT Matrix page: modulation cables">
+        <img class="shot" src="matrix.png" alt="F4RT Matrix page: modulation cables">
+      </button>
+    </section>
+
+    <section id="fx" class="feature">
+      <div>
+        <h2>FX</h2>
+        <p>EQ, Comp, Delay, Reverb, Chorus, Phaser, Flanger, Ring shift, and Stutter. Named enable buttons; knobs do nothing while that effect is off, which is a kindness. Order runs left to first; slots 8 and 9 are labelled Shift and Grain because they are.</p>
+      </div>
+      <button type="button" class="shot-open" data-shot="fx.png" data-shot-alt="F4RT FX page: rack and order">
+        <img class="shot" src="fx.png" alt="F4RT FX page: rack and order">
+      </button>
+    </section>
+
+    <section id="patches" class="feature">
+      <div>
+        <h2>Patches</h2>
+        <p>Two hundred factory seeds, then whatever you save. Save As, Import, Fav, search and tags. User files are <code>.f4rtp</code> in the usual Stupid Audio folder. Loading a factory patch starts from Init, so leftover FX and matrix from the previous sound do not hitch a ride.</p>
+      </div>
+      <button type="button" class="shot-open" data-shot="browser.png" data-shot-alt="F4RT Patches page: factory seeds">
+        <img class="shot" src="browser.png" alt="F4RT Patches page: factory seeds">
+      </button>
+    </section>
+
+    <section id="about" class="feature">
+      <div>
+        <h2>About</h2>
+        <p>Click the logo, F4RT, or the version in the top left. <strong>Check for update</strong> asks GitHub for tags; <strong>Open releases</strong> walks you to the download page if something newer exists.</p>
+      </div>
+      <button type="button" class="shot-open" data-shot="about.png" data-shot-alt="F4RT About dialog">
         <img class="shot" src="about.png" alt="F4RT About dialog">
-        <figcaption>About — version, Check for update, Open releases.</figcaption>
-      </figure>
-    </section>
-
-    <section id="notes">
-      <h2>Notes</h2>
-      <a href="notes.html?doc=MANUAL.md">Manual</a>
-      <a href="notes.html?doc=SPEC.md">Spec</a>
-      <a href="notes.html?doc=ARCHITECTURE.md">Architecture</a>
-      <a href="notes.html?doc=DSP_NOTES.md">DSP notes</a>
+      </button>
     </section>
   </main>
+
+  <dialog id="dl" class="dl-dialog" aria-labelledby="dl-title">
+    <button type="button" class="dl-close" data-dl-close aria-label="Close">
+      <svg class="icon" aria-hidden="true"><use href="icons.svg#close"></use></svg>
+    </button>
+    <h2 id="dl-title">Download F4RT</h2>
+    <div class="dl-kind">
+      <p>The Windows installer is the easy path. It can put the VST3, the standalone app, or both on the machine, and it adds a Start menu shortcut for the app.</p>
+      <div class="dl-row" data-kind="installer" hidden>
+        <a class="download os" data-os="win" hidden>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#windows"></use></svg>
+          Windows installer
+        </a>
+      </div>
+    </div>
+    <div class="dl-kind">
+      <p>The VST3 zip is just the plugin. Drop it where your DAW looks for VST3s. Mac builds are ad-hoc signed, so Gatekeeper will sulk until you right-click Open the first time.</p>
+      <div class="dl-row" data-kind="vst3" hidden>
+        <a class="download os" data-os="win" hidden>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#windows"></use></svg>
+          Windows
+        </a>
+        <a class="download os" data-os="linux" hidden>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#linux"></use></svg>
+          Linux
+        </a>
+        <a class="download os" data-os="mac" hidden>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#apple"></use></svg>
+          macOS
+        </a>
+      </div>
+    </div>
+    <div class="dl-kind">
+      <p>The standalone zip is the app, no DAW required. Same Gatekeeper story on Mac. Linux wants the usual system ALSA, FreeType, fontconfig, and X11 libraries.</p>
+      <div class="dl-row" data-kind="standalone" hidden>
+        <a class="download os" data-os="win" hidden>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#windows"></use></svg>
+          Windows
+        </a>
+        <a class="download os" data-os="linux" hidden>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#linux"></use></svg>
+          Linux
+        </a>
+        <a class="download os" data-os="mac" hidden>
+          <svg class="icon" aria-hidden="true"><use href="icons.svg#apple"></use></svg>
+          macOS
+        </a>
+      </div>
+    </div>
+    <img class="dl-logo" src="logo.png" alt="" width="192" height="192">
+  </dialog>
+
+  <dialog id="shot" class="shot-dialog">
+    <button type="button" class="dl-close" data-shot-close aria-label="Close">
+      <svg class="icon" aria-hidden="true"><use href="icons.svg#close"></use></svg>
+    </button>
+    <img id="shot-full" alt="">
+  </dialog>
+
+  <script src="icons.js"></script>
   <script type="module" src="fx.js"></script>
   <script src="site.js"></script>
 </body>
