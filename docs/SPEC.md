@@ -67,6 +67,8 @@ Flavour: Clean, Psytrance, Forest, Darkpsy, Hi-Tech, Experimental. Buttons: All,
 - `#e0e0e0`
 - `#666666`
 
+`assets/logo.png` is the Affinity export. Source of truth. Never overwrite. `just icon` derives the Standalone ICO.
+
 ## Layout
 
 ```
