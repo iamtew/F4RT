@@ -1,5 +1,7 @@
 # F4RT – Cursor Rules
 
+Spec: [docs/SPEC.md](docs/SPEC.md).
+
 PsyFart Designer: MIDI-triggered psytrance fart / squelch / croak / zap instrument.
 
 Sibling of TEW03, K1X, 5HKR, V4JB.
