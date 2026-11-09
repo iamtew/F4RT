@@ -127,16 +127,19 @@ function fartScene(PIXI, glow, w0, h0) {
 
       wave.clear();
       const wet = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * 0.35));
+      const a1 = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 0.21));
+      const a2 = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * 0.33 + 1.1));
+      const a3 = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.17 + 2.4));
       const amp = h * 0.16 * (0.55 + 0.45 * wet);
       const cy = h * 0.58;
       const main = [], echo = [];
       for (let x = -10; x <= w + 10; x += 5) {
-        const u = (x / w) * 6.28 + t * 1.1;
+        const u = (x / w) * 6.28 - t * 1.1;
         const body = Math.sin(u * 1.4) * 0.35;
-        const f1 = Math.sin(u * 7.2) * Math.exp(-Math.abs(Math.sin(u * 0.5)) * 1.6);
-        const f2 = Math.sin(u * 12.5 + 0.4) * 0.55 * wet;
-        const f3 = Math.sin(u * 18 + t) * 0.28 * wet;
-        const y = cy + amp * (body + f1 + f2 + f3);
+        const f1 = Math.sin(u * 7.2) * Math.exp(-Math.abs(Math.sin(u * 0.5)) * 1.6) * a1;
+        const f2 = Math.sin(u * 12.5 + 0.4) * 0.55 * a2;
+        const f3 = Math.sin(u * 18) * 0.28 * a3;
+        const y = cy + amp * (body + f1 + f2 + f3 + Math.sin(u * 4.1 - t * 0.35) * 0.18);
         main.push(x, y);
         echo.push(x, cy + (y - cy) * 0.55 + amp * 0.12 * Math.sin(u * 3));
       }
