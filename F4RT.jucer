@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT name="F4RT" companyName="Stupid Audio" version="0.0.5" userNotes="PsyFart Designer."
+<JUCERPROJECT name="F4RT" companyName="Stupid Audio" version="0.0.6" userNotes="PsyFart Designer."
               projectType="audioplug" pluginAUIsSandboxSafe="1" pluginManufacturer="Stupid Audio"
               pluginManufacturerCode="Ssys" pluginCode="F4rt" cppLanguageStandard="17"
               pluginFormats="buildVST3,buildAU,buildStandalone" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn"
