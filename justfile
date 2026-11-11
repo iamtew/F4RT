@@ -23,6 +23,7 @@ resave:
 
 # PNG → Builds/.../icon.ico, then wipe compiled .res so the next build relinks it.
 icon:
+    Copy-Item assets/logo.png docs/logo.png -Force
     magick assets/logo.png -define icon:auto-resize=256,128,64,48,32,16 Builds\VisualStudio2022\icon.ico
     Get-ChildItem Builds\VisualStudio2022 -Recurse -Filter resources.res | Remove-Item -Force
 
@@ -38,7 +39,7 @@ build-dist: build-release
     $ver = ([xml](Get-Content '{{PROJECT}}')).JUCERPROJECT.version; Compress-Archive -Path 'Builds\VisualStudio2022\x64\Release\VST3\F4RT.vst3' -DestinationPath "dist\F4RT-$ver-win-x64-vst3.zip" -Force; Compress-Archive -Path 'Builds\VisualStudio2022\x64\Release\Standalone Plugin\F4RT.exe' -DestinationPath "dist\F4RT-$ver-win-x64-standalone.zip" -Force
     just build-msi
 
-build-msi:
+build-msi: build-dist
     $ver = ([xml](Get-Content '{{PROJECT}}')).JUCERPROJECT.version; $root = (Get-Location).Path; $dotnet = 'dotnet'; if (-not ((& dotnet --list-sdks) 2>$null)) { $dotnet = Join-Path $env:USERPROFILE '.dotnet\dotnet.exe'; if (-not (Test-Path $dotnet)) { throw 'build-msi needs the .NET 8 SDK on PATH, or dotnet.exe in %USERPROFILE%\.dotnet' } }; New-Item -ItemType Directory -Force -Path dist | Out-Null; & $dotnet build installer\F4RT.wixproj -c Release -p:ProductVersion=$ver -p:Vst3Dir="$root\Builds\VisualStudio2022\x64\Release\VST3\F4RT.vst3" -p:StandaloneDir="$root\Builds\VisualStudio2022\x64\Release\Standalone Plugin" -p:IconDir="$root\Builds\VisualStudio2022"; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; $msi = Get-ChildItem installer\bin -Recurse -Filter F4RT.msi | Select-Object -First 1; Copy-Item $msi.FullName "dist\F4RT-$ver-win-x64-installer.msi" -Force
 
 clean:
