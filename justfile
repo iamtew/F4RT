@@ -23,7 +23,7 @@ resave:
 
 # PNG → Builds/.../icon.ico, then wipe compiled .res so the next build relinks it.
 icon:
-    Copy-Item assets/logo.png docs/logo.png -Force
+    magick assets/logo.png -background none -colorspace RGB -filter Lanczos +distort Resize 320x320 -colorspace sRGB PNG32:docs/logo.png
     magick assets/logo.png -define icon:auto-resize=256,128,64,48,32,16 Builds\VisualStudio2022\icon.ico
     Get-ChildItem Builds\VisualStudio2022 -Recurse -Filter resources.res | Remove-Item -Force
 
