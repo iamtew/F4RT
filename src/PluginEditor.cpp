@@ -1146,12 +1146,12 @@ void F4RTAudioProcessorEditor::paintContent (juce::Graphics& g)
     if (editorPage == Motion && ! motionMap.isEmpty())
     {
         static const char* mapLine[] = {
-            "Pitch env → osc pitch",
-            "Filter env → cutoff × Env amount",
-            "FM env → FM × FM Env",
-            "Vowel env → morph  (LFO1 × Alien)",
-            "Grit env → drive",
-            "Loudness → amp  (sus~0 one-shot)"
+            "Pitch env -> osc pitch",
+            "Filter env -> cutoff x Env amount",
+            "FM env -> FM x FM Env",
+            "Vowel env -> morph  (LFO1 x Alien)",
+            "Grit env -> drive",
+            "Loudness -> amp  (sus~0 one-shot)"
         };
         const int cw = juce::jmax (1, motionMap.getWidth() / 6);
         g.setFont (boldFont (10.f));
@@ -1301,12 +1301,12 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
 void F4RTAudioProcessorEditor::layoutMotion (juce::Rectangle<int> r)
 {
     static const char* envTitle[] = {
-        "Pitch → osc", "Filter → cutoff", "FM → amounts",
-        "Vowel → morph", "Grit → drive", "Loudness → amp"
+        "Pitch -> osc", "Filter -> cutoff", "FM -> amounts",
+        "Vowel -> morph", "Grit -> drive", "Loudness -> amp"
     };
     static const char* envSub[] = {
-        "hardwired", "hardwired · Env amount on Sound", "hardwired · FM Env on Sound",
-        "hardwired · LFO1×Alien also", "hardwired", "hardwired · sus~0 = one-shot"
+        "hardwired", "hardwired - Env amount on Sound", "hardwired - FM Env on Sound",
+        "hardwired - LFO1 x Alien also", "hardwired", "hardwired - sus~0 = one-shot"
     };
     motionMap = r.removeFromTop (36);
     r.removeFromTop (4);
@@ -1335,7 +1335,7 @@ void F4RTAudioProcessorEditor::layoutMotion (juce::Rectangle<int> r)
 
 void F4RTAudioProcessorEditor::layoutMatrix (juce::Rectangle<int> r)
 {
-    sections.push_back ({ r, "Cables", "On  |  From  →  To  |  Amount   ·   16 of 32" });
+    sections.push_back ({ r, "Cables", "On  |  From  ->  To  |  Amount   -   16 of 32" });
     auto body = r.reduced (8).withTrimmedTop (kSectionHead);
     const int onW = 70, amtW = 110;
     const int rh = juce::jmax (1, body.getHeight() / 16);
