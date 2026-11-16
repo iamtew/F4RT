@@ -312,6 +312,8 @@ void F4RTAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     for (int i = 0; i < 6; ++i)
         envMon[i] = engine.slot[0].voice.env[i].level;
     for (int i = 0; i < 4; ++i)
+        lfoMon[i] = engine.slot[0].voice.lfo[i].last;
+    for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
             analyser.fmVis[i][j] = p.fm[i][j];
 }

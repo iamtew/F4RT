@@ -15,7 +15,9 @@ PsyFart Designer: MIDI-triggered psytrance fart / squelch / croak / zap instrume
 - Patches: `%APPDATA%\Stupid Audio\F4RT\Patches\*.f4rtp`. Favorites: `favorites.txt`
 - Jucer `version=` is the binary, About dialog, git tag, and `just build-dist` name. Tags match that string (no `v` prefix).
 
-Tabs: Sound, Motion, Matrix, FX, Patches.
+Pages (title-row selector): Sound, Motion, Matrix, FX, Patches.
+
+Right-click Cutoff, Resonance, Morph, or Grit Drive to assign LFO / vel / macros / mod wheel; that writes a Matrix row. Dedicated envelopes stay hardwired. Dest knobs show a coloured arc and a source badge while routed.
 
 MIDI note-on starts a voice. Pitch follows the note. MPE channel pitch-bend and channel pressure are read. Mod wheel is a matrix source.
 

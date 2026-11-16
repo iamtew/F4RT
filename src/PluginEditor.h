@@ -7,7 +7,7 @@
 #include <functional>
 #include <vector>
 
-// Title row (About, patch / bank bars, volume strip) plus five pages:
+// Title row (About, page / patch / bank bars, volume strip) plus five pages:
 // Sound (the chain), Motion, Matrix, FX, Patches.
 class F4RTAudioProcessorEditor : public juce::AudioProcessorEditor,
                                  private juce::Timer
@@ -46,7 +46,11 @@ private:
     void openAbout();
 
     void setEditorPage (int page);
+    void cyclePage (int delta);
+    void openPageMenu();
     void applyPageVisibility();
+    void toggleMatrixRoute (int dest, int src);
+    void refreshModKnobs();
 
     void refreshBars();
     void cyclePatch (int delta);
@@ -65,6 +69,7 @@ private:
     {
         juce::Rectangle<int> bounds;
         juce::String title, sub;
+        juce::Colour accent { f4rt::kYellow };
     };
 
     F4RTAudioProcessor& proc;
@@ -113,15 +118,6 @@ private:
         std::function<void()> onOpen;
     };
 
-    struct PageTabs : public juce::Component,
-                      public juce::SettableTooltipClient
-    {
-        explicit PageTabs (F4RTAudioProcessorEditor& e) : ed (e) {}
-        void paint (juce::Graphics& g) override;
-        void mouseUp (const juce::MouseEvent& e) override;
-        F4RTAudioProcessorEditor& ed;
-    };
-
     // Level fader (left) + output spectrum (right). Both flash yellow on clip.
     struct VolumeStrip : public juce::Component,
                          public juce::SettableTooltipClient
@@ -154,10 +150,21 @@ private:
         Knob (juce::AudioProcessorValueTreeState& st, const juce::String& id,
               const juce::String& name, const juce::String& tip,
               const juce::String& hint = {});
+        ~Knob() override;
         void resized() override;
+        void mouseDown (const juce::MouseEvent&) override;
+        void paintOverChildren (juce::Graphics&) override;
+        void bindDest (F4RTAudioProcessorEditor& e, int dest, int hardEnv = -1);
+        void refreshMod();
         juce::Label label, hint;
         juce::Slider slider;
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> att;
+        F4RTAudioProcessorEditor* ed = nullptr;
+        int dest = 0;    // f4rt::Dest; 0 = none
+        int hardEnv = -1;
+        juce::String badgeText;
+        juce::Colour badgeCol { f4rt::kLight };
+        bool showBadge = false;
     };
 
     struct Combo : public juce::Component,
@@ -241,8 +248,7 @@ private:
     Knob* shHz {}, *grSz {}, *grDn {};
     Combo* fxSlot[9] {};
 
-    PatchBar patchBar, bankBar;
-    PageTabs pageTabs { *this };
+    PatchBar pageBar, patchBar, bankBar;
     VolumeStrip volumeStrip { *this };
 
     juce::ToggleButton playBtn { "Play" };
@@ -269,6 +275,7 @@ private:
     juce::Rectangle<int> fmGrid;
     juce::Rectangle<int> chainGaps[2];
     juce::Rectangle<int> oscLabels[4];
+    juce::Rectangle<int> motionMap;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (F4RTAudioProcessorEditor)
 };

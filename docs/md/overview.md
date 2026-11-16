@@ -28,12 +28,12 @@ Glide is the slide time for mono and legato. Zero snaps. Poly ignores it. Bend i
 
 ![Sound page](play.png)
 
-The top bar is always there. Under it sit five tabs:
+The top bar is always there. The page bar in that row picks:
 
-| Tab | What it is |
+| Page | What it is |
 |---|---|
 | **Sound** | Oscillators, FM, vowel, filter, grit, character, voice, scope |
-| **Motion** | Six envelopes and four LFOs |
+| **Motion** | Six envelopes, four LFOs, and the hardwired routing map |
 | **Matrix** | Modulation cables |
 | **FX** | The rack and the order |
 | **Patches** | Factory seeds and your saves |

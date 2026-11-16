@@ -67,6 +67,7 @@ public:
 
     f4rt::Analyser analyser;
     float envMon[6] {};
+    float lfoMon[4] {};
     juce::String searchText;
     float uiScale = 1.0f;
     std::atomic<bool> clipFlag { false };  // set by the audio thread, consumed by the volume strip

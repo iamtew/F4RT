@@ -22,6 +22,7 @@ struct Lfo
 {
     float phase = 0.f;
     float held = 0.f;
+    float last = 0.f;  // last bipolar output, UI meter
     uint32_t rng = 1;
 
     void reset (uint32_t seed)
@@ -47,31 +48,40 @@ struct Lfo
         if (wrap)
             phase -= std::floor (phase);
 
+        float y = 0.f;
         switch (shape)
         {
             case lfoTri:
-                return p0 < 0.5f ? p0 * 4.f - 1.f : 3.f - p0 * 4.f;
+                y = p0 < 0.5f ? p0 * 4.f - 1.f : 3.f - p0 * 4.f;
+                break;
             case lfoRamp:
-                return p0 * 2.f - 1.f;
+                y = p0 * 2.f - 1.f;
+                break;
             case lfoRandom:
-                return uni() * 2.f - 1.f;
+                y = uni() * 2.f - 1.f;
+                break;
             case lfoSH:
                 if (wrap || p0 == 0.f)
                     held = uni() * 2.f - 1.f;
-                return held;
+                y = held;
+                break;
             case lfoUser:
             {
                 if (draw == nullptr)
-                    return 0.f;
+                    break;
                 const float x = p0 * (float) kLfoDrawN;
                 const int i = (int) x & (kLfoDrawN - 1);
                 const int j = (i + 1) & (kLfoDrawN - 1);
                 const float f = x - std::floor (x);
-                return draw[i] + (draw[j] - draw[i]) * f;
+                y = draw[i] + (draw[j] - draw[i]) * f;
+                break;
             }
             default:
-                return std::sin (p0 * 6.28318530718f);
+                y = std::sin (p0 * 6.28318530718f);
+                break;
         }
+        last = y;
+        return y;
     }
 };
 

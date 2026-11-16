@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "dsp/ModMatrix.h"
 #include "parameters/FactoryBank.h"
 #include "ui/VersionCompare.h"
 
@@ -13,7 +14,6 @@ constexpr const char* kPageNames[] = { "Sound", "Motion", "Matrix", "FX", "Patch
 constexpr int kPad = 8;
 constexpr int kTitleH = 40;
 constexpr int kTitleHitW = 150;
-constexpr int kTabH = 28;
 constexpr int kLabelH = 12;
 constexpr int kHintH = 10;
 constexpr int kSectionHead = 20;
@@ -35,7 +35,43 @@ using f4rt::kLight;
 using f4rt::kGrey;
 using f4rt::kInk;
 using f4rt::kChassis;
+using f4rt::kOscCol;
+using f4rt::kEnvCol;
 using f4rt::boldFont;
+using f4rt::destCutoff;
+using f4rt::destRes;
+using f4rt::destFormMorph;
+using f4rt::destDist;
+using f4rt::kSrcLfo0;
+using f4rt::kSrcVel;
+
+constexpr const char* kAssignName[] = {
+    "LFO1", "LFO2", "LFO3", "LFO4", "Vel", "AT",
+    "Size", "Wet", "Anger", "Alien", "Squelch", "Rip", "Tox", "Mod wheel"
+};
+constexpr const char* kAssignBadge[] = {
+    "L1", "L2", "L3", "L4", "V", "AT",
+    "Sz", "Wt", "An", "Al", "Sq", "Rp", "Tx", "MW"
+};
+constexpr int kAssignSrc[] = { 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
+constexpr int kAssignN = 14;
+
+juce::Colour colourForSrc (int src)
+{
+    if (src >= 0 && src < 6)
+        return kEnvCol[src];
+    if (src >= kSrcLfo0 && src < kSrcLfo0 + 4)
+        return kOscCol[src - kSrcLfo0];
+    return kLight;
+}
+
+int assignIndexForSrc (int src)
+{
+    for (int i = 0; i < kAssignN; ++i)
+        if (kAssignSrc[i] == src)
+            return i;
+    return -1;
+}
 
 juce::String factoryLabel (int i)
 {
@@ -56,6 +92,7 @@ F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
     label.setColour (juce::Label::textColourId, kLight);
     addAndMakeVisible (label);
     label.setVisible (name.isNotEmpty());
+    label.setInterceptsMouseClicks (false, false);
     hint.setText (hintText, juce::dontSendNotification);
     hint.setJustificationType (juce::Justification::centred);
     hint.setColour (juce::Label::textColourId, kGrey);
@@ -73,6 +110,23 @@ F4RTAudioProcessorEditor::Knob::Knob (juce::AudioProcessorValueTreeState& st,
         slider.setDoubleClickReturnValue (true, p->convertFrom0to1 (p->getDefaultValue()));
     setTooltip (tip);
     slider.setTooltip (tip);
+    slider.setPopupMenuEnabled (false);
+}
+
+F4RTAudioProcessorEditor::Knob::~Knob()
+{
+    slider.removeMouseListener (this);
+}
+
+void F4RTAudioProcessorEditor::Knob::bindDest (F4RTAudioProcessorEditor& e, int d, int hard)
+{
+    ed = &e;
+    dest = d;
+    hardEnv = hard;
+    slider.addMouseListener (this, false);
+    const auto extra = getTooltip() + " Right-click: assign LFO / vel / macro (writes a Matrix row).";
+    setTooltip (extra);
+    slider.setTooltip (extra);
 }
 
 void F4RTAudioProcessorEditor::Knob::resized()
@@ -83,6 +137,106 @@ void F4RTAudioProcessorEditor::Knob::resized()
     if (hint.isVisible())
         hint.setBounds (r.removeFromTop (kHintH));
     slider.setBounds (r);
+}
+
+void F4RTAudioProcessorEditor::Knob::mouseDown (const juce::MouseEvent& e)
+{
+    if (ed == nullptr || dest <= 0 || ! e.mods.isPopupMenu())
+        return;
+    const auto mx = ed->proc.currentMatrix();
+    juce::PopupMenu m;
+    for (int i = 0; i < kAssignN; ++i)
+    {
+        bool on = false;
+        for (int r = 0; r < 16; ++r)
+            if (mx.row[r].on && mx.row[r].dest == dest && mx.row[r].src == kAssignSrc[i])
+                on = true;
+        m.addItem (kAssignSrc[i] + 1, kAssignName[i], true, on);
+    }
+    juce::Component::SafePointer<Knob> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this),
+                     [safe] (int result)
+                     {
+                         if (safe == nullptr || result <= 0 || safe->ed == nullptr)
+                             return;
+                         safe->ed->toggleMatrixRoute (safe->dest, result - 1);
+                     });
+}
+
+void F4RTAudioProcessorEditor::Knob::paintOverChildren (juce::Graphics& g)
+{
+    if (! showBadge)
+        return;
+    auto b = juce::Rectangle<float> ((float) getWidth() - 22.f, (float) kLabelH + 1.f, 18.f, 12.f);
+    if (label.getText().isEmpty())
+        b.setY (1.f);
+    g.setColour (kInk);
+    g.fillRoundedRectangle (b, 3.f);
+    g.setColour (badgeCol);
+    g.drawRoundedRectangle (b, 3.f, 1.2f);
+    g.setFont (boldFont (9.f));
+    g.drawText (badgeText, b.toNearestInt(), juce::Justification::centred, false);
+}
+
+void F4RTAudioProcessorEditor::Knob::refreshMod()
+{
+    if (ed == nullptr || dest <= 0)
+        return;
+    const auto mx = ed->proc.currentMatrix();
+    int n = 0, firstSrc = -1;
+    float amt = 0.f;
+    for (int r = 0; r < 16; ++r)
+    {
+        if (! mx.row[r].on || mx.row[r].dest != dest)
+            continue;
+        if (n == 0)
+        {
+            firstSrc = mx.row[r].src;
+            amt = mx.row[r].amt;
+        }
+        ++n;
+    }
+    showBadge = n > 0;
+    if (n == 1)
+    {
+        const int ai = assignIndexForSrc (firstSrc);
+        badgeText = ai >= 0 ? kAssignBadge[ai] : "?";
+        badgeCol = colourForSrc (firstSrc);
+    }
+    else if (n > 1)
+    {
+        badgeText = juce::String (n);
+        badgeCol = colourForSrc (firstSrc);
+    }
+
+    float y = 0.5f;
+    if (firstSrc >= 0 && firstSrc < 6)
+        y = ed->proc.envMon[firstSrc];
+    else if (firstSrc >= kSrcLfo0 && firstSrc < kSrcLfo0 + 4)
+        y = juce::jlimit (0.f, 1.f, 0.5f + 0.5f * ed->proc.lfoMon[firstSrc - kSrcLfo0]);
+    else if (firstSrc >= kSrcVel)
+        y = 0.5f;
+
+    float hwAmt = 0.f, hwY = 0.5f;
+    juce::Colour col = kLight;
+    if (hardEnv >= 0 && hardEnv < 6)
+    {
+        hwY = ed->proc.envMon[hardEnv];
+        hwAmt = 1.f;
+        if (hardEnv == 1 && ed->filtEnv != nullptr)
+            hwAmt = (float) ed->filtEnv->slider.getValue();
+        col = kEnvCol[hardEnv];
+    }
+    else if (firstSrc >= 0)
+        col = colourForSrc (firstSrc);
+
+    const bool live = n > 0 || hwAmt > 0.001f;
+    slider.getProperties().set ("modOn", live ? 1 : 0);
+    slider.getProperties().set ("modAmt", n > 0 ? std::abs (amt) : hwAmt);
+    slider.getProperties().set ("modY", n > 0 ? y : hwY);
+    slider.getProperties().set ("modCol", (int) col.getARGB());
+    slider.repaint();
+    repaint();
 }
 
 F4RTAudioProcessorEditor::Combo::Combo (juce::AudioProcessorValueTreeState& st,
@@ -131,7 +285,7 @@ void F4RTAudioProcessorEditor::Toggle::resized()
 
 void F4RTAudioProcessorEditor::PanelLnF::drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h,
                                                            float pos, float startAngle, float endAngle,
-                                                           juce::Slider&)
+                                                           juce::Slider& slider)
 {
     auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (1.f);
     const float d = juce::jmin (bounds.getWidth(), bounds.getHeight());
@@ -183,6 +337,37 @@ void F4RTAudioProcessorEditor::PanelLnF::drawRotarySlider (juce::Graphics& g, in
     const float pip = juce::jmax (1.6f, d * 0.045f);
     const auto pipC = c.getPointOnCircumference (capD * 0.28f, angle);
     g.fillEllipse (pipC.x - pip * 0.5f, pipC.y - pip * 0.5f, pip, pip);
+
+    if ((int) slider.getProperties().getWithDefault ("modOn", 0) <= 0)
+        return;
+    const float amt = (float) slider.getProperties().getWithDefault ("modAmt", 0.f);
+    const float modY = (float) slider.getProperties().getWithDefault ("modY", 0.5f);
+    const auto col = juce::Colour ((juce::uint32) (int) slider.getProperties().getWithDefault ("modCol", (int) kGreen.getARGB()));
+    const float sweep = juce::jlimit (0.f, 1.f, std::abs (amt));
+    const float lo = juce::jlimit (0.f, 1.f, pos - sweep);
+    const float hi = juce::jlimit (0.f, 1.f, pos + sweep);
+    const float now = juce::jlimit (0.f, 1.f, pos + amt * (modY * 2.f - 1.f));
+    const float span = endAngle - startAngle;
+    const float radius = d * 0.44f;
+    if (hi - lo > 0.004f)
+    {
+        juce::Path arc;
+        arc.addCentredArc (c.x, c.y, radius, radius, 0.f,
+                           startAngle + lo * span, startAngle + hi * span, true);
+        g.setColour (kInk);
+        g.strokePath (arc, juce::PathStrokeType (juce::jmax (1.5f, d * 0.045f),
+                                                 juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+        g.setColour (col.withAlpha (0.85f));
+        g.strokePath (arc, juce::PathStrokeType (juce::jmax (1.f, d * 0.028f),
+                                                 juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+    const auto dot = c.getPointOnCircumference (radius, startAngle + now * span);
+    const float dotD = juce::jmax (2.f, d * 0.06f);
+    g.setColour (kInk);
+    g.fillEllipse (dot.x - dotD * 0.5f, dot.y - dotD * 0.5f, dotD, dotD);
+    const float dotIn = juce::jmax (1.4f, dotD * 0.72f);
+    g.setColour (col);
+    g.fillEllipse (dot.x - dotIn * 0.5f, dot.y - dotIn * 0.5f, dotIn, dotIn);
 }
 
 void F4RTAudioProcessorEditor::PanelLnF::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool over, bool)
@@ -399,33 +584,6 @@ void F4RTAudioProcessorEditor::PatchBar::mouseUp (const juce::MouseEvent& e)
     }
     else if (onOpen)
         onOpen();
-}
-
-void F4RTAudioProcessorEditor::PageTabs::paint (juce::Graphics& g)
-{
-    const int n = F4RTAudioProcessorEditor::kPageCount;
-    const float w = (float) getWidth() / (float) n;
-    for (int i = 0; i < n; ++i)
-    {
-        auto t = juce::Rectangle<float> (i * w, 0.f, w, (float) getHeight()).reduced (2.f, 3.f);
-        const bool on = i == ed.editorPage;
-        g.setColour (on ? kInk.brighter (0.16f) : kInk);
-        g.fillRoundedRectangle (t, 4.f);
-        g.setColour (on ? kYellow : kGrey);
-        g.drawRoundedRectangle (t.reduced (0.5f), 4.f, 1.f);
-        g.setFont (boldFont (12.f));
-        g.setColour (on ? kYellow : kLight);
-        g.drawText (kPageNames[i], t.toNearestInt(), juce::Justification::centred, false);
-    }
-}
-
-void F4RTAudioProcessorEditor::PageTabs::mouseUp (const juce::MouseEvent& e)
-{
-    if (! e.mouseWasClicked() || getWidth() <= 0)
-        return;
-    const int i = juce::jlimit (0, F4RTAudioProcessorEditor::kPageCount - 1,
-                                e.x * F4RTAudioProcessorEditor::kPageCount / getWidth());
-    ed.setEditorPage (i);
 }
 
 F4RTAudioProcessorEditor::VolumeStrip::VolumeStrip (F4RTAudioProcessorEditor& ed)
@@ -714,20 +872,26 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
                              "How much osc " + n + " modulates osc " + juce::String (j + 1) + ".");
     }
     fmEnv = addK (ParamID::fmEnvDepth, "FM Env", "How much the FM envelope scales the FM amounts.");
+    fmEnv->label.setColour (juce::Label::textColourId, kEnvCol[2]);
     fmRecipe = addC (ParamID::fmRecipe, "Recipe", "Preset FM graph. Click Apply FM to write it.");
     formA = addC (ParamID::formA, "From", "Start vowel.");
     formB = addC (ParamID::formB, "To", "End vowel.");
     formMorph = addK (ParamID::formMorph, "Morph", "Blend From into To.");
+    formMorph->bindDest (*this, destFormMorph, 3);
     formTrack = addK (ParamID::formTrack, "Follow note", "How much the vowel frequencies follow the MIDI note.");
     formMix = addK (ParamID::formMix, "Mix", "Dry/wet of the vowel filter.");
     filtType = addC (ParamID::filtType, "Type", "LP, HP, BP, notch, comb. SVF is the same as LP.");
     cutoff = addK (ParamID::cutoff, "Cutoff", "Filter cutoff frequency.");
+    cutoff->bindDest (*this, destCutoff, 1);
     res = addK (ParamID::res, "Resonance", "Filter resonance / emphasis.");
+    res->bindDest (*this, destRes);
     filtDrive = addK (ParamID::filtDrive, "Drive in", "Saturation into the filter.");
     keyTrack = addK (ParamID::keyTrack, "Follow note", "How much cutoff follows the MIDI note.");
     filtEnv = addK (ParamID::filtEnv, "Env amount", "How much the filter envelope moves cutoff.");
+    filtEnv->label.setColour (juce::Label::textColourId, kEnvCol[1]);
     distType = addC (ParamID::distType, "Type", "Soft, hard, tube, fold, crush or digital.");
     distDrive = addK (ParamID::distDrive, "Drive", "Distortion amount.");
+    distDrive->bindDest (*this, destDist, 4);
     distTone = addK (ParamID::distTone, "Tone", "Distortion brightness.");
     distMix = addK (ParamID::distMix, "Mix", "Dry/wet of the distortion.");
     static const char* macN[] = { "Size", "Wetness", "Anger", "Alienness", "Squelch", "Rip Length", "Toxicity" };
@@ -872,12 +1036,14 @@ F4RTAudioProcessorEditor::F4RTAudioProcessorEditor (F4RTAudioProcessor& p)
     patchBar.onOpen = [this] { openPatchMenu(); };
     bankBar.onStep = [this] (int d) { cycleBank (d); };
     bankBar.onOpen = [this] { openBankMenu(); };
-    pageTabs.setTooltip ("Sound is the chain. Motion, Matrix, FX, Patches are extra.");
+    pageBar.setText (kPageNames[Sound]);
+    pageBar.setTooltip ("Sound, Motion, Matrix, FX, Patches. Arrows step; click for the list.");
+    pageBar.onStep = [this] (int d) { cyclePage (d); };
+    pageBar.onOpen = [this] { openPageMenu(); };
     patchBar.setTooltip ("Patch. Arrows step factory then user; click for save / load.");
     bankBar.setTooltip ("Category. Arrows jump to the first patch of the next category.");
-    content.addAndMakeVisible (pageTabs);
-    for (auto* c : { (juce::Component*) &patchBar, (juce::Component*) &bankBar,
-                     (juce::Component*) &volumeStrip })
+    for (auto* c : { (juce::Component*) &pageBar, (juce::Component*) &patchBar,
+                     (juce::Component*) &bankBar, (juce::Component*) &volumeStrip })
         content.addAndMakeVisible (c);
     refreshBars();
 
@@ -911,6 +1077,7 @@ void F4RTAudioProcessorEditor::timerCallback()
 {
     refreshBars();
     volumeStrip.refresh();
+    refreshModKnobs();
     if (editorPage == Sound)
         viz.repaint();
 }
@@ -960,10 +1127,12 @@ void F4RTAudioProcessorEditor::paintContent (juce::Graphics& g)
         g.fillRoundedRectangle (b, 4.f);
         g.setColour (kGrey);
         g.drawRoundedRectangle (b.reduced (0.5f), 4.f, 1.f);
+        g.setColour (s.accent);
+        g.fillRect (b.removeFromLeft (3.f).reduced (0.f, 4.f));
         juce::Graphics::ScopedSaveState clip (g);
         g.reduceClipRegion (s.bounds);
         auto t = s.bounds.reduced (8, 1).removeFromTop (kSectionHead);
-        g.setColour (kYellow);
+        g.setColour (s.accent);
         g.setFont (boldFont (11.f));
         g.drawText (s.title, t, juce::Justification::centredLeft, true);
         if (s.sub.isNotEmpty())
@@ -974,30 +1143,58 @@ void F4RTAudioProcessorEditor::paintContent (juce::Graphics& g)
         }
     }
 
+    if (editorPage == Motion && ! motionMap.isEmpty())
+    {
+        static const char* mapLine[] = {
+            "Pitch env → osc pitch",
+            "Filter env → cutoff × Env amount",
+            "FM env → FM × FM Env",
+            "Vowel env → morph  (LFO1 × Alien)",
+            "Grit env → drive",
+            "Loudness → amp  (sus~0 one-shot)"
+        };
+        const int cw = juce::jmax (1, motionMap.getWidth() / 6);
+        g.setFont (boldFont (10.f));
+        for (int i = 0; i < 6; ++i)
+        {
+            auto cell = juce::Rectangle<int> (motionMap.getX() + i * cw, motionMap.getY(),
+                                              cw, motionMap.getHeight()).reduced (4, 2);
+            g.setColour (kEnvCol[i]);
+            g.drawFittedText (mapLine[i], cell, juce::Justification::centred, 2);
+        }
+    }
+
     if (editorPage != Sound)
         return;
 
     g.setFont (boldFont (11.f));
-    g.setColour (kYellow);
     for (int i = 0; i < 4; ++i)
         if (! oscLabels[i].isEmpty())
+        {
+            g.setColour (kOscCol[i]);
             g.drawText ("Osc " + juce::String (i + 1), oscLabels[i],
                         juce::Justification::centred, false);
+        }
 
     if (! fmGrid.isEmpty())
     {
         const int cw = juce::jmax (1, fmGrid.getWidth() / 4);
         const int ch = juce::jmax (1, fmGrid.getHeight() / 4);
         g.setFont (boldFont (9.f));
-        g.setColour (kGrey);
         for (int j = 0; j < 4; ++j)
+        {
+            g.setColour (kOscCol[j]);
             g.drawText ("into " + juce::String (j + 1),
                         fmGrid.getX() + j * cw, fmGrid.getY() - 14, cw, 14,
                         juce::Justification::centred, false);
+        }
         for (int i = 0; i < 4; ++i)
+        {
+            g.setColour (kOscCol[i]);
             g.drawText (juce::String (i + 1),
                         fmGrid.getX() - 22, fmGrid.getY() + i * ch, 20, ch,
                         juce::Justification::centred, false);
+        }
     }
 
     g.setColour (kYellow);
@@ -1035,8 +1232,8 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
 
     auto oscS = top.removeFromLeft (top.getWidth() * 62 / 100);
     auto fmS = top;
-    sections.push_back ({ oscS, "Oscillators", {} });
-    sections.push_back ({ fmS, "FM", {} });
+    sections.push_back ({ oscS, "Oscillators", {}, kYellow });
+    sections.push_back ({ fmS, "FM", {}, kEnvCol[2] });
 
     auto oscBody = oscS.reduced (4);
     auto oscHead = oscBody.removeFromTop (kSectionHead);
@@ -1072,9 +1269,9 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
     auto filt = chain.removeFromLeft (colW);
     chainGaps[1] = chain.removeFromLeft (gap);
     auto grit = chain;
-    sections.push_back ({ vowel, "Vowel", {} });
-    sections.push_back ({ filt, "Filter", {} });
-    sections.push_back ({ grit, "Grit", {} });
+    sections.push_back ({ vowel, "Vowel", {}, kEnvCol[3] });
+    sections.push_back ({ filt, "Filter", {}, kEnvCol[1] });
+    sections.push_back ({ grit, "Grit", {}, kEnvCol[4] });
     juce::Component* v[] = { formA, formB, formMorph, formTrack, formMix };
     juce::Component* f[] = { filtType, cutoff, res, filtDrive, keyTrack, filtEnv };
     juce::Component* d[] = { distType, distDrive, distTone, distMix };
@@ -1103,9 +1300,16 @@ void F4RTAudioProcessorEditor::layoutSound (juce::Rectangle<int> r)
 
 void F4RTAudioProcessorEditor::layoutMotion (juce::Rectangle<int> r)
 {
-    static const char* envTitle[] = { "Pitch", "Filter", "FM", "Vowel", "Grit", "Loudness" };
-    static const char* envSub[] = { "always on", "moves cutoff", "scales FM", "morphs vowel",
-                                    "pushes drive", "sustain near 0 = one-shot" };
+    static const char* envTitle[] = {
+        "Pitch → osc", "Filter → cutoff", "FM → amounts",
+        "Vowel → morph", "Grit → drive", "Loudness → amp"
+    };
+    static const char* envSub[] = {
+        "hardwired", "hardwired · Env amount on Sound", "hardwired · FM Env on Sound",
+        "hardwired · LFO1×Alien also", "hardwired", "hardwired · sus~0 = one-shot"
+    };
+    motionMap = r.removeFromTop (36);
+    r.removeFromTop (4);
     auto envArea = r.removeFromTop (r.getHeight() * 62 / 100);
     r.removeFromTop (6);
     const int cw = juce::jmax (1, envArea.getWidth() / 3);
@@ -1114,7 +1318,7 @@ void F4RTAudioProcessorEditor::layoutMotion (juce::Rectangle<int> r)
     {
         auto card = juce::Rectangle<int> (envArea.getX() + (i % 3) * cw,
                                           envArea.getY() + (i / 3) * ch, cw, ch).reduced (3);
-        sections.push_back ({ card, envTitle[i], envSub[i] });
+        sections.push_back ({ card, envTitle[i], envSub[i], kEnvCol[i] });
         juce::Component* e[] = { envAtk[i], envDec[i], envSus[i], envRel[i] };
         placeRow (card.reduced (4).withTrimmedTop (kSectionHead), e, 4);
     }
@@ -1123,7 +1327,7 @@ void F4RTAudioProcessorEditor::layoutMotion (juce::Rectangle<int> r)
     for (int i = 0; i < 4; ++i)
     {
         auto card = juce::Rectangle<int> (r.getX() + i * lw, r.getY(), lw, r.getHeight()).reduced (3);
-        sections.push_back ({ card, "LFO " + juce::String (i + 1), {} });
+        sections.push_back ({ card, "LFO " + juce::String (i + 1), "matrix source", kOscCol[i] });
         juce::Component* l[] = { lShape[i], lRate[i], lAmt[i], lSync[i] };
         placeRow (card.reduced (4).withTrimmedTop (kSectionHead), l, 4);
     }
@@ -1200,16 +1404,16 @@ void F4RTAudioProcessorEditor::layoutContent()
     chainGaps[1] = {};
     for (auto& o : oscLabels)
         o = {};
+    motionMap = {};
 
     auto r = content.getLocalBounds().reduced (kPad);
     auto title = r.removeFromTop (kTitleH);
     title.removeFromLeft (kTitleHitW);
     volumeStrip.setBounds (title.removeFromRight (240).reduced (2, 4));
+    pageBar.setBounds (title.removeFromLeft (108).reduced (4, 4));
     const int barW = title.getWidth() / 2;
     patchBar.setBounds (title.removeFromLeft (barW).reduced (4, 4));
     bankBar.setBounds (title.reduced (4, 4));
-    r.removeFromTop (4);
-    pageTabs.setBounds (r.removeFromTop (kTabH));
     r.removeFromTop (4);
 
     switch (editorPage)
@@ -1265,7 +1469,7 @@ void F4RTAudioProcessorEditor::applyPageVisibility()
 
     layoutContent();
     content.repaint();
-    pageTabs.repaint();
+    pageBar.repaint();
     if (aboutBox.isVisible())
         aboutBox.toFront (false);
 }
@@ -1273,7 +1477,98 @@ void F4RTAudioProcessorEditor::applyPageVisibility()
 void F4RTAudioProcessorEditor::setEditorPage (int page)
 {
     editorPage = juce::jlimit (0, kPageCount - 1, page);
+    pageBar.setText (kPageNames[editorPage]);
     applyPageVisibility();
+}
+
+void F4RTAudioProcessorEditor::cyclePage (int delta)
+{
+    setEditorPage ((editorPage + delta + kPageCount) % kPageCount);
+}
+
+void F4RTAudioProcessorEditor::openPageMenu()
+{
+    juce::PopupMenu m;
+    for (int i = 0; i < kPageCount; ++i)
+        m.addItem (i + 1, kPageNames[i], true, i == editorPage);
+    juce::Component::SafePointer<F4RTAudioProcessorEditor> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&pageBar),
+                     [safe] (int result)
+                     {
+                         if (safe == nullptr || result <= 0)
+                             return;
+                         safe->setEditorPage (result - 1);
+                     });
+}
+
+void F4RTAudioProcessorEditor::toggleMatrixRoute (int dest, int src)
+{
+    auto mx = proc.currentMatrix();
+    for (int i = 0; i < 16; ++i)
+    {
+        if (mx.row[i].on && mx.row[i].dest == dest && mx.row[i].src == src)
+        {
+            if (auto* p = dynamic_cast<juce::AudioParameterBool*> (proc.apvts.getParameter (ParamID::mxOn[i])))
+            {
+                p->beginChangeGesture();
+                p->setValueNotifyingHost (0.f);
+                p->endChangeGesture();
+            }
+            refreshModKnobs();
+            return;
+        }
+    }
+    for (int i = 0; i < 16; ++i)
+    {
+        if (mx.row[i].on)
+            continue;
+        auto setC = [this] (const char* id, int v)
+        {
+            if (auto* p = dynamic_cast<juce::AudioParameterChoice*> (proc.apvts.getParameter (id)))
+            {
+                p->beginChangeGesture();
+                p->setValueNotifyingHost (p->convertTo0to1 ((float) v));
+                p->endChangeGesture();
+            }
+        };
+        auto setF = [this] (const char* id, float v)
+        {
+            if (auto* p = dynamic_cast<juce::RangedAudioParameter*> (proc.apvts.getParameter (id)))
+            {
+                p->beginChangeGesture();
+                p->setValueNotifyingHost (p->convertTo0to1 (v));
+                p->endChangeGesture();
+            }
+        };
+        auto setB = [this] (const char* id, bool v)
+        {
+            if (auto* p = dynamic_cast<juce::AudioParameterBool*> (proc.apvts.getParameter (id)))
+            {
+                p->beginChangeGesture();
+                p->setValueNotifyingHost (v ? 1.f : 0.f);
+                p->endChangeGesture();
+            }
+        };
+        setC (ParamID::mxSrc[i], src);
+        setC (ParamID::mxDst[i], dest);
+        if (std::abs (mx.row[i].amt) < 0.001f)
+            setF (ParamID::mxAmt[i], 0.5f);
+        setB (ParamID::mxOn[i], true);
+        refreshModKnobs();
+        return;
+    }
+}
+
+void F4RTAudioProcessorEditor::refreshModKnobs()
+{
+    if (cutoff != nullptr)
+        cutoff->refreshMod();
+    if (res != nullptr)
+        res->refreshMod();
+    if (formMorph != nullptr)
+        formMorph->refreshMod();
+    if (distDrive != nullptr)
+        distDrive->refreshMod();
 }
 
 void F4RTAudioProcessorEditor::contentMouseUp (const juce::MouseEvent& e)
